@@ -1,0 +1,40 @@
+.progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 50; transform: scaleX(0); transform-origin: 0 50%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 12px rgba(244,17,44,.7); }
+.doc-top { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: max(12px, env(safe-area-inset-top)) clamp(16px, 4vw, 48px) 12px; background: rgba(10,10,10,.75); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.doc-logo img { width: 120px; }
+.doc-nav { display: flex; align-items: center; gap: clamp(10px, 2.5vw, 26px); font-size: .92rem; }
+.doc-nav a { color: var(--muted); text-decoration: none; padding: 6px 2px; position: relative; transition: color .2s; }
+.doc-nav a:hover, .doc-nav a[aria-current] { color: var(--text); }
+.doc-nav a[aria-current]::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--accent); border-radius: 2px; }
+.doc-nav .doc-login { color: #fff; background: var(--accent); padding: 8px 16px; border-radius: 10px; font-weight: 600; transition: transform .25s var(--ease), box-shadow .25s; }
+.doc-nav .doc-login:hover { transform: translateY(-1px); box-shadow: 0 8px 22px -6px rgba(244,17,44,.7); }
+@media (max-width: 560px) { .doc-logo img { width: 92px; } .doc-nav a:not(.doc-login) { font-size: .82rem; } .doc-nav { gap: 10px; } .doc-nav .doc-login { padding: 7px 12px; } }
+
+.doc { display: grid; grid-template-columns: 1fr; gap: 28px; max-width: 1120px; margin: 0 auto; padding: clamp(24px, 5vw, 56px) clamp(16px, 4vw, 32px) 40px; }
+.doc-toc { padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.03); }
+.doc-toc p { margin: 0 0 10px; font: 700 .8rem var(--font-head); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.doc-toc ol { margin: 0; padding: 0; list-style: none; counter-reset: t; display: grid; gap: 2px; }
+.doc-toc li { counter-increment: t; }
+.doc-toc a { display: flex; gap: 10px; padding: 7px 10px; border-radius: 8px; color: #c9c9cf; text-decoration: none; font-size: .92rem; transition: background .2s, color .2s; }
+.doc-toc a::before { content: counter(t, decimal-leading-zero); color: var(--muted); font-variant-numeric: tabular-nums; }
+.doc-toc a:hover { background: rgba(255,255,255,.05); color: var(--text); }
+.doc-toc a.active { background: rgba(244,17,44,.12); color: #fff; }
+.doc-toc a.active::before { color: var(--accent-2); }
+@media (min-width: 900px) { .doc { grid-template-columns: 270px minmax(0, 1fr); gap: 56px; } .doc-toc { position: sticky; top: 84px; align-self: start; max-height: calc(100dvh - 110px); overflow: auto; } }
+
+.doc-body { max-width: 760px; }
+.doc-body h1 { margin: 0 0 8px; font: 700 clamp(2rem, 6vw, 3.2rem)/1.05 var(--font-head); text-transform: uppercase; }
+.doc-meta { margin: 0 0 18px; color: var(--muted); font-size: .9rem; }
+.doc-intro { margin: 0 0 36px; padding-left: 16px; border-left: 3px solid var(--accent); color: #d4d4d8; font-size: 1.05rem; }
+.doc-sec { margin-bottom: 38px; scroll-margin-top: 90px; }
+.doc-sec h2 { display: flex; align-items: baseline; gap: 14px; margin: 0 0 14px; font: 700 clamp(1.3rem, 3.5vw, 1.7rem)/1.15 var(--font-head); text-transform: uppercase; letter-spacing: .01em; }
+.doc-sec h2 span { color: var(--accent); font-size: .85em; }
+.doc-sec p, .doc-sec li { color: #c4c4cc; line-height: 1.7; overflow-wrap: anywhere; }
+.doc-sec p { margin: 0 0 12px; }
+.doc-sec ul { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 8px; }
+.doc-sec li { position: relative; padding-left: 22px; }
+.doc-sec li::before { content: ''; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px; border-radius: 2px; background: var(--accent); transform: rotate(45deg); }
+.doc-sec b { color: var(--text); font-weight: 600; }
+.doc a { color: var(--accent-2); }
+.doc-end { margin: 48px 0 0; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: .92rem; }
+.doc-foot { padding: 28px 16px max(28px, env(safe-area-inset-bottom)); text-align: center; color: #6e6e77; font-size: .85rem; border-top: 1px solid var(--line); }
+.doc-foot a { color: var(--muted); }
