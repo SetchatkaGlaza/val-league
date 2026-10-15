@@ -14,7 +14,7 @@ const key = (u) => normPath(u.pathname) + u.search;
  * Клиентский роутер на History API: переходы без перезагрузки страницы.
  * onRoute(route, ctx) отвечает за показ страницы (анимации и т. п.).
  */
-export function createRouter({ routes, notFound, onRoute }) {
+export function createRouter({ resolve, notFound, onRoute }) {
   let renderedKey = null;   // что сейчас на экране
   let latest = 0;           // номер последнего запрошенного перехода
   let queue = Promise.resolve();
@@ -34,8 +34,9 @@ export function createRouter({ routes, notFound, onRoute }) {
     queue = queue.then(async () => {
       if (id !== latest || k === renderedKey) return;   // пока ждали, пришёл более новый переход
       const path = normPath(url.pathname);
+      const hit = resolve(path);   // { view, params } или null (адреса вида /teams/<slug> разбираются здесь)
       const ctx = {
-        path, mode, query: url.searchParams, hash: url.hash,
+        path, mode, query: url.searchParams, hash: url.hash, params: hit ? hit.params : {},
         stale: () => id !== latest,
         /** Вызывается страницей, когда новый контент уже в DOM: возвращает/сбрасывает скролл. */
         applyScroll() {
@@ -44,7 +45,7 @@ export function createRouter({ routes, notFound, onRoute }) {
         },
       };
       let result;
-      try { result = await onRoute(routes[path] || notFound, ctx); }
+      try { result = await onRoute(hit ? hit.view : notFound, ctx); }
       catch (e) { console.error('Ошибка перехода', e); }
       // 'aborted': старая страница уже убрана, а новая не показана — следующий переход обязан отрисоваться заново
       if (result === 'aborted') renderedKey = null;

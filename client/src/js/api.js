@@ -14,8 +14,9 @@ async function request(path, { method = 'GET', body, timeout = 12000 } = {}) {
   try {
     const res = await fetch(BASE + path, {
       method, credentials: 'include', signal: ctrl.signal,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
+      // Blob (логотип) уходит как есть, всё остальное — JSON
+      headers: body ? { 'Content-Type': body instanceof Blob ? body.type : 'application/json' } : undefined,
+      body: body ? (body instanceof Blob ? body : JSON.stringify(body)) : undefined,
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new ApiError(res.status, data.code || 'error', data.message || '', data.field);
@@ -114,7 +115,38 @@ export const settings = {
   deleteAccount: (d) => post('/account/delete', d, mocks.deleteAccount),
 };
 
+// Команды работают только с сервером: в демо-режиме (VITE_MOCK=true) данных для них нет.
+const live = (fn) => (...a) => (MOCK ? Promise.reject(new ApiError(0, 'mock', '')) : fn(...a));
+const enc = encodeURIComponent;
+const send = (method, path, body) => request(path, { method, body: body ?? {} });
+
+export const teams = {
+  mine: live(() => request('/teams/mine')),
+  create: live((d) => send('POST', '/teams', d)),
+  get: live((slug) => request(`/teams/${enc(slug)}`)),
+  update: live((slug, d) => send('PATCH', `/teams/${enc(slug)}`, d)),
+  remove: live((slug) => send('DELETE', `/teams/${enc(slug)}`)),
+  setLogo: live((slug, blob) => request(`/teams/${enc(slug)}/logo`, { method: 'PUT', body: blob, timeout: 30000 })),
+  removeLogo: live((slug) => send('DELETE', `/teams/${enc(slug)}/logo`)),
+  invite: live((slug, nick) => send('POST', `/teams/${enc(slug)}/invites`, { nick })),
+  revokeInvite: live((slug, id) => send('DELETE', `/teams/${enc(slug)}/invites/${enc(id)}`)),
+  resetLink: live((slug) => send('POST', `/teams/${enc(slug)}/invite-link/reset`)),
+  setRole: live((slug, userId, role) => send('PATCH', `/teams/${enc(slug)}/members/${enc(userId)}`, { role })),
+  kick: live((slug, userId) => send('DELETE', `/teams/${enc(slug)}/members/${enc(userId)}`)),
+  makeCaptain: live((slug, userId) => send('POST', `/teams/${enc(slug)}/captain`, { userId })),
+};
+
+/** Приглашение — либо по ссылке ({ token }), либо персональное ({ id }). */
+export const invites = {
+  preview: live((pick) => request(`/invites/preview?${new URLSearchParams(pick)}`)),
+  accept: live((pick) => send('POST', '/invites/accept', pick)),
+  decline: live((id) => send('POST', '/invites/decline', { id })),
+};
+
+export const logoUrl = (file) => (file ? `${BASE}/files/logos/${file}` : null);
+
 export const COMMON_ERRORS = {
+  mock: 'Команды работают только с подключённым сервером (сейчас включён демо-режим).',
   rate_limited: 'Слишком много попыток. Подождите несколько минут и попробуйте снова.',
   network: 'Нет соединения с сервером. Проверьте интернет и повторите.',
   timeout: 'Сервер долго не отвечает. Попробуйте ещё раз.',

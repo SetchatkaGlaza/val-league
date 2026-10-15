@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 // Настройки из server/.env. Модуль импортируется после dotenv/config (см. index.js).
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -14,4 +16,8 @@ export const config = {
   clientUrl: (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, ''),
   cookieName: 'val_session',
   mailFrom: process.env.MAIL_FROM || 'VAL <no-reply@val-league.ru>',
+  // Загруженные файлы (логотипы команд). В продакшене укажите путь вне папки с кодом и включите его в бэкапы.
+  uploadsDir: process.env.UPLOADS_DIR || fileURLToPath(new URL('../uploads', import.meta.url)),
+  // Лимиты команд: основа + запасные, сколько команд можно создать и в скольких состоять.
+  teams: { maxMain: 5, maxSub: 2, maxOwned: 3, maxJoined: 10, maxPendingInvites: 20 },
 };

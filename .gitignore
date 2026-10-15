@@ -5,3 +5,4 @@ dist
 *.sqlite
 *.log
 .DS_Store
+server/uploads

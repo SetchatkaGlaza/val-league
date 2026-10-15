@@ -35,3 +35,15 @@ export function passwordScore(v) {
 }
 /** Принимаем только внутренние пути, чтобы ?next= нельзя было использовать для фишинга. */
 export const safeNext = (p, fb = '/') => (p && p.startsWith('/') && !p.startsWith('//') && !p.includes('\\') ? p : fb);
+
+const TEAM_RE = /^[A-Za-zА-Яа-яЁё0-9 _.\-]+$/;
+const RESERVED_TEAMS = ['val', 'admin', 'administrator', 'moderator', 'support', 'vologdaamateurleague'];
+export const teamNameError = (raw) => {
+  const v = raw.trim().replace(/\s+/g, ' ');
+  if (!v) return 'Придумайте название команды';
+  if (v.length < 3 || v.length > 24) return 'Название — от 3 до 24 символов';
+  if (!TEAM_RE.test(v)) return 'Только буквы, цифры, пробел и символы _ . -';
+  if (RESERVED_TEAMS.includes(v.toLowerCase().replace(/\s/g, ''))) return 'Это название зарезервировано';
+  return '';
+};
+export const teamDescError = (v) => (v.trim().length > 300 ? 'Описание — не длиннее 300 символов' : '');

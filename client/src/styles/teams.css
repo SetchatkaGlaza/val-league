@@ -1,0 +1,94 @@
+/* Команды: создание, страница команды, приглашения */
+
+/* Логотип и заглушка */
+.tm-logo { width: 44px; height: 44px; flex: none; border-radius: 12px; object-fit: cover; background: rgba(255,255,255,.05); border: 1px solid var(--line); }
+.tm-logo.ph { display: grid; place-items: center; font: 700 1.3rem var(--font-head); color: var(--accent-2); background: linear-gradient(135deg, rgba(244,17,44,.18), rgba(244,17,44,.05)); background-size: cover; background-position: center; }
+.tm-logo.sm { width: 40px; height: 40px; border-radius: 11px; font-size: 1.1rem; }
+.tm-logo.lg { width: 84px; height: 84px; border-radius: 20px; font-size: 2rem; }
+.tm-logo.xl { width: 96px; height: 96px; border-radius: 22px; font-size: 2.4rem; box-shadow: 0 12px 34px -12px rgba(244,17,44,.5); }
+.tm-logo.ph.has { color: transparent; }
+
+/* Форма создания и настройки */
+.tm-form-card { max-width: 640px; }
+.tm-form { max-width: none; }
+.opt { margin-left: 6px; font-weight: 400; font-size: .78rem; color: var(--muted); }
+.control.area { align-items: stretch; }
+.control textarea { flex: 1; min-width: 0; padding: 12px 14px; background: none; border: 0; outline: 0; resize: vertical; min-height: 84px; font: inherit; line-height: 1.5; color: inherit; }
+.control textarea::placeholder { color: #5c5c64; }
+.logo-pick { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.logo-pick-t { display: grid; gap: 6px; min-width: 0; }
+.logo-pick-t .hint-mut, .logo-pick-t .err { margin: 0; }
+.tm-logo-set { padding-bottom: 14px; margin: 4px 0 14px; border-bottom: 1px solid var(--line); }
+
+/* Шапка команды */
+.tm { max-width: 1040px; }
+.tm-hero { display: flex; align-items: center; gap: 20px; padding: 22px; border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(160deg, rgba(26,26,29,.88), rgba(14,14,16,.92)); }
+.tm-hero-t { flex: 1; min-width: 0; }
+.tm-hero h1 { display: inline; margin: 0 10px 0 0; font: 700 clamp(1.8rem, 5vw, 2.6rem)/1.1 var(--font-head); text-transform: uppercase; overflow-wrap: anywhere; vertical-align: middle; }
+.tm-desc { margin: 8px 0 12px; color: #c4c4cc; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-line; }
+.tm-desc .muted, .muted { color: var(--muted); }
+.tm-hero .chips { margin: 0; }
+.tm-hero > .btn { align-self: flex-start; }
+.tm-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-style: normal; font-size: .74rem; font-weight: 600; letter-spacing: .02em; color: #c4c4cc; border: 1px solid var(--line); background: rgba(255,255,255,.05); vertical-align: middle; }
+.tm-badge.cap { color: var(--accent-2); border-color: rgba(244,17,44,.45); background: rgba(244,17,44,.1); }
+.tm-badge.steam { color: var(--ok); border-color: rgba(61,220,132,.35); background: rgba(61,220,132,.08); }
+.tm-badge svg { width: 13px; height: 13px; }
+@media (max-width: 620px) { .tm-hero { flex-direction: column; align-items: flex-start; } .tm-hero > .btn { align-self: stretch; } }
+
+/* Сетка карточек и списки */
+.tm .acc-grid { align-items: start; }
+@media (min-width: 820px) { .tm-wide { grid-column: 1 / -1; } }
+.tm-sub { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 6px; font: 700 .85rem var(--font-head); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.tm-sub span { letter-spacing: 0; font: 400 .82rem var(--font-body); text-transform: none; }
+.tm-empty { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
+.mem-list { list-style: none; margin: 0; padding: 0; }
+.mem { position: relative; display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
+.mem:first-child { border-top: 0; }
+.mem-av { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 12px; font: 700 1.2rem var(--font-head); background: linear-gradient(135deg, var(--accent-2), var(--accent)); }
+.mem-t { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: .94rem; }
+.mem-t b { overflow-wrap: anywhere; }
+.mem-t > span { display: flex; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: .82rem; }
+.mem-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-decoration: none; transition: transform .25s var(--ease); }
+.mem-link:hover { transform: translateX(3px); }
+.mem .tg-actions { flex: none; }
+.tm-create { margin-top: 14px; }
+
+/* Меню действий над игроком */
+.mem-menu { position: relative; flex: none; }
+.mem-menu summary { list-style: none; cursor: pointer; display: inline-flex; width: auto; }
+.mem-menu summary::-webkit-details-marker { display: none; }
+.mem-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 5; min-width: 220px; display: grid; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: #16161a; box-shadow: 0 20px 50px -10px rgba(0,0,0,.8); }
+.mem-pop button { min-height: 42px; padding: 0 12px; text-align: left; background: none; border: 0; border-radius: 9px; color: var(--text); cursor: pointer; }
+.mem-pop button:hover, .mem-pop button:focus-visible { background: rgba(255,255,255,.07); }
+.mem-pop button.bad { color: var(--danger); }
+.mem-pop button:disabled { opacity: .5; cursor: progress; }
+
+/* Ссылка-приглашение */
+.link-box { margin: 0 0 10px; }
+.link-box input { width: 100%; height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.35); color: var(--text); font-size: .86rem; text-overflow: ellipsis; }
+.link-box input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Всплывающее сообщение */
+.tm-toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); z-index: 50; max-width: min(92vw, 460px); margin: 0; padding: 12px 18px; transform: translateX(-50%); border-radius: 12px; font-size: .92rem; box-shadow: 0 18px 50px -10px rgba(0,0,0,.8); border: 1px solid rgba(255,90,90,.4); background: #2a1215; color: #ffb4b4; }
+.tm-toast.ok { border-color: rgba(61,220,132,.4); background: #11241a; color: #9ef0c1; }
+.tm-toast[hidden] { display: none; }
+
+/* Загрузка и состояния */
+.tm-skel { display: grid; gap: 18px; }
+.sk { border-radius: 20px; background: linear-gradient(100deg, rgba(255,255,255,.04) 30%, rgba(255,255,255,.09) 50%, rgba(255,255,255,.04) 70%) 0 0 / 200% 100%; animation: skel 1.4s linear infinite; }
+.sk-hero { height: 150px; } .sk-card { height: 180px; }
+@keyframes skel { to { background-position: -200% 0; } }
+.tm-state { padding-top: clamp(24px, 6vh, 60px); }
+.tm-state h1 { font-size: clamp(1.6rem, 5vw, 2.2rem); }
+
+/* Страница «Вас пригласили» */
+.tm-invite { max-width: 560px; }
+.inv-card { display: grid; justify-items: center; gap: 6px; padding: clamp(22px, 5vw, 36px); text-align: center; border: 1px solid var(--line); border-radius: 24px; background: linear-gradient(160deg, rgba(26,26,29,.9), rgba(14,14,16,.92)); box-shadow: 0 30px 80px -30px rgba(244,17,44,.35); }
+.inv-card .tm-logo { margin-bottom: 8px; }
+.inv-card .label { margin: 0; }
+.inv-lead { margin: 0; color: #c4c4cc; overflow-wrap: anywhere; }
+.inv-card h1 { margin: 2px 0 4px; font: 700 clamp(1.9rem, 6vw, 2.6rem)/1.1 var(--font-head); text-transform: uppercase; overflow-wrap: anywhere; }
+.inv-card .tm-desc { margin: 0 0 4px; }
+.inv-info { margin: 4px 0 14px; color: var(--muted); font-size: .9rem; }
+.inv-actions { display: grid; gap: 10px; width: min(100%, 340px); }
+.inv-actions .btn { margin-top: 0; }

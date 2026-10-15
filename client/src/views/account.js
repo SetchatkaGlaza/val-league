@@ -1,7 +1,8 @@
 import { $, $$, gsap, motion } from '../js/ui.js';
-import { account, auth, ApiError, serverFallback } from '../js/api.js';
+import { account, auth, teams, invites, ApiError, serverFallback } from '../js/api.js';
 import { getUser, patchUser, clearUser } from '../js/session.js';
 import { ICON, esc } from './parts.js';
+import { teamLogo, teamError, plural } from './team-parts.js';
 
 const TG = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M21.5 4.3 2.9 11.4c-1.3.5-1.3 1.3-.2 1.6l4.8 1.5 1.8 5.6c.2.6.1.8.7.8.4 0 .6-.2.9-.5l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.7c.3-1.2-.5-1.8-1.5-1.4ZM9 14l9.3-5.9c.4-.3.8-.1.5.2L11.2 15.2l-.3 3.2L9 14Z"/></svg>';
 const empty = (text, hint) => `<div class="acc-empty"><p>${text}</p>${hint ? `<span>${hint}</span>` : ''}</div>`;
@@ -28,6 +29,16 @@ function linkedHtml(u, tg) {
   return `<h2>Привязанные аккаунты</h2><p class="acc-sub">Steam подтверждает игрока, Telegram присылает уведомления о матчах.</p>${steam}${tgRow}${panel}`;
 }
 
+const teamsHtml = (list) => (list.length
+  ? `<ul class="mem-list">${list.map((t) => `<li class="mem"><a class="mem-link" href="/teams/${esc(t.slug)}">${teamLogo(t, 'sm')}<span class="mem-t"><b>${esc(t.name)}</b><span>${t.isCaptain ? 'Капитан' : t.role === 'main' ? 'Основа' : 'Запас'} · ${t.members} ${plural(t.members, 'игрок', 'игрока', 'игроков')}</span></span></a></li>`).join('')}</ul>`
+  : empty('Вы пока не состоите в командах.', 'Создайте свою или примите приглашение капитана.'))
+  + '<div class="tg-actions tm-create"><a href="/teams/new" class="btn btn-primary btn-sm">Создать команду</a></div>';
+
+const invitesHtml = (list) => `<ul class="mem-list">${list.map((i) => `
+  <li class="mem">${teamLogo(i, 'sm')}<div class="mem-t"><b>${esc(i.name)}</b><span>${i.invitedBy ? `Пригласил(а): ${esc(i.invitedBy)}` : 'Приглашение капитана'}</span></div>
+  <div class="tg-actions"><button type="button" class="btn btn-primary btn-sm" data-tact="accept" data-id="${i.id}">Принять</button><button type="button" class="btn btn-ghost btn-sm" data-tact="decline" data-id="${i.id}">Отклонить</button></div></li>`).join('')}</ul>
+  <p class="err" id="invErr" role="alert"></p>`;
+
 export default {
   layout: 'doc',
   protected: true,
@@ -47,7 +58,8 @@ export default {
       <div class="banner" id="accNote" ${u.steam ? 'hidden' : ''}>Привяжите Steam, чтобы участвовать в турнирах: так мы подтверждаем игрока.</div>
       <div class="acc-grid">
         <section class="acc-card" id="linked">${linkedHtml(u)}</section>
-        <section class="acc-card"><h2>Мои команды</h2>${empty('Вы пока не состоите в командах.', 'Создание и приглашения появятся на следующем этапе.')}</section>
+        <section class="acc-card" id="teamsCard"><h2>Мои команды</h2><div id="teamsBody"><p class="acc-sub">Загружаем…</p></div></section>
+        <section class="acc-card" id="invCard" hidden><h2>Приглашения в команды</h2><div id="invBody"></div></section>
         <section class="acc-card"><h2>Мои турниры</h2>${empty('Вы ещё не участвовали в турнирах.', 'Здесь появятся предстоящие и прошедшие турниры.')}</section>
         <section class="acc-card acc-wide"><h2>История матчей</h2>${empty('Матчей пока нет.', 'Результаты ваших игр будут собираться здесь.')}</section>
       </div>
@@ -60,6 +72,35 @@ export default {
     const draw = () => { card.innerHTML = linkedHtml(getUser(), tg); note.hidden = !!getUser().steam; };
     const busy = (btn, v) => { btn.disabled = v; btn.classList.toggle('loading', v); };
     const fail = (e, el) => { const m = serverFallback(e instanceof ApiError ? e : new ApiError(0, 'network', ''), 'Не удалось выполнить. Попробуйте ещё раз.'); if (el) el.textContent = m; };
+
+    /* Команды и приглашения: грузим отдельно, чтобы кабинет открывался мгновенно */
+    const loadTeams = async () => {
+      try {
+        const r = await teams.mine();
+        if (!alive) return;
+        $('#teamsBody', root).innerHTML = teamsHtml(r.teams);
+        $('#invCard', root).hidden = !r.invites.length;
+        $('#invBody', root).innerHTML = r.invites.length ? invitesHtml(r.invites) : '';
+      } catch (e) {
+        if (alive) $('#teamsBody', root).innerHTML = `<div class="acc-empty"><p>${esc(teamError(e, 'Не удалось загрузить команды.'))}</p></div>`;
+      }
+    };
+    root.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-tact]'); if (!b || b.disabled) return;
+      b.disabled = true; b.classList.add('loading');
+      try {
+        if (b.dataset.tact === 'accept') { const r = await invites.accept({ id: b.dataset.id }); if (alive) navigate(`/teams/${r.slug}`); return; }
+        await invites.decline(b.dataset.id);
+        if (alive) await loadTeams();
+      } catch (err) {
+        if (!alive) return;
+        b.disabled = false; b.classList.remove('loading');
+        // Приглашение могло устареть или состав заполнился: обновляем список, затем объясняем причину.
+        if (['invite_invalid', 'team_full', 'already_member'].includes(err.code)) await loadTeams();
+        const el = $('#invErr', root); if (el && alive) el.textContent = teamError(err);
+      }
+    });
+    loadTeams();
 
     if (motion) gsap.from($$('.acc-hero, .acc-card', root), { y: 22, opacity: 0, duration: .6, stagger: .08, ease: 'power3.out', clearProps: 'transform,opacity' });
 

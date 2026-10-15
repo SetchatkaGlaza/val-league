@@ -3,7 +3,7 @@ import { layouts, updateNav, fadeOut } from './layouts.js';
 import { resetProgress } from './doc-effects.js';
 import { createRouter } from './router.js';
 import { getUser } from './session.js';
-import { routes, notFound } from '../routes.js';
+import { resolve, notFound } from '../routes.js';
 
 const root = document.getElementById('root');
 const announcer = document.getElementById('announcer');
@@ -35,7 +35,8 @@ function focusHeading() {
 
 async function onRoute(view, ctx) {
   // Закрытые страницы: без входа отправляем на /login и вернём обратно через ?next=
-  if (view.protected && !getUser()) { router.navigate(`/login?next=${encodeURIComponent(ctx.path)}`, { replace: true }); return 'aborted'; }
+  // (вместе с ?token=… — иначе приглашение по ссылке потеряется после входа)
+  if (view.protected && !getUser()) { router.navigate(`/login?next=${encodeURIComponent(ctx.path + (ctx.query.toString() ? `?${ctx.query}` : ''))}`, { replace: true }); return 'aborted'; }
   const sameLayout = layoutName === view.layout;
   const first = !layout;
 
@@ -89,11 +90,11 @@ async function onRoute(view, ctx) {
   if (!first && ctx.mode !== 'pop' && !layout.slot.contains(document.activeElement)) focusHeading();
 }
 
-const router = createRouter({ routes, notFound, onRoute });
+const router = createRouter({ resolve, notFound, onRoute });
 export const { navigate } = router;
 export const start = () => router.start();
 /** Сервер сказал, что сессии нет (истекла/заблокирован): обновляем шапку и уводим со закрытых страниц. */
 export const onSessionLost = () => {
   updateNav(location.pathname);
-  if (shown && shown.protected) router.navigate(`/login?next=${encodeURIComponent(location.pathname)}`, { replace: true });
+  if (shown && shown.protected) router.navigate(`/login?next=${encodeURIComponent(location.pathname + location.search)}`, { replace: true });
 };

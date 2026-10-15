@@ -23,6 +23,12 @@ export function sameOrigin(req, res, next) {
   next();
 }
 
+/** Лимит на действия с командами: считается по пользователю, а не по IP (за одним IP может сидеть вся компания в клубе). */
+export const writeLimiter = rateLimit({
+  windowMs: 15 * 60_000, limit: 80, standardHeaders: 'draft-7', legacyHeaders: false, handler: limited,
+  keyGenerator: (req) => req.user?.id || req.ip,
+});
+
 export const cookieOptions = { httpOnly: true, sameSite: 'lax', secure: config.isProd, path: '/' };
 
 /** Достаёт пользователя из cookie. Блокировка действует сразу: пользователь каждый раз читается из БД. */
@@ -45,4 +51,19 @@ export async function requireAuth(req, res, next) {
     }
     next(e);
   }
+}
+
+/** Для публичных страниц, которым нужно знать, кто смотрит (капитан видит больше). Без входа просто идёт дальше. */
+export async function optionalAuth(req, _res, next) {
+  try {
+    const raw = req.cookies?.[config.cookieName];
+    if (raw) {
+      const { sub } = jwt.verify(raw, config.jwtSecret);
+      const { rows } = await query('SELECT * FROM users WHERE id = $1', [sub]);
+      if (rows[0] && !rows[0].blocked) req.user = rows[0];
+    }
+  } catch (e) {
+    if (e.name !== 'JsonWebTokenError' && e.name !== 'TokenExpiredError') return next(e);
+  }
+  next();
 }

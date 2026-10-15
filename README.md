@@ -37,7 +37,7 @@ npm run dev        # клиент :5173, сервер :4000
 ## Продакшен
 Сайт — SPA, поэтому веб-сервер должен отдавать `index.html` на любой адрес, кроме `/api` и файлов. Пример для nginx:
 ```nginx
-location /api/ { proxy_pass http://127.0.0.1:4000; }
+location /api/ { proxy_pass http://127.0.0.1:4000; client_max_body_size 2m; }   # /api/files — логотипы команд
 location /     { root /var/www/val/client/dist; try_files $uri /index.html; }
 ```
 Сборка: `npm run build` → `client/dist`.
