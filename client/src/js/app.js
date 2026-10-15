@@ -2,6 +2,7 @@ import { gsap, motion, $, tween, enterFields, morphSlot } from './ui.js';
 import { layouts, updateNav, fadeOut } from './layouts.js';
 import { resetProgress } from './doc-effects.js';
 import { createRouter } from './router.js';
+import { getUser } from './session.js';
 import { routes, notFound } from '../routes.js';
 
 const root = document.getElementById('root');
@@ -10,6 +11,7 @@ const SITE_TITLE = 'VOLOGDA AMATEUR LEAGUE';
 
 let layoutName = null;
 let layout = null;        // { el, slot }
+let shown = null;         // текущая страница
 let cleanup = null;       // отписка текущей страницы
 
 function setMeta(view) {
@@ -32,6 +34,8 @@ function focusHeading() {
 }
 
 async function onRoute(view, ctx) {
+  // Закрытые страницы: без входа отправляем на /login и вернём обратно через ?next=
+  if (view.protected && !getUser()) { router.navigate(`/login?next=${encodeURIComponent(ctx.path)}`, { replace: true }); return 'aborted'; }
   const sameLayout = layoutName === view.layout;
   const first = !layout;
 
@@ -79,6 +83,7 @@ async function onRoute(view, ctx) {
 
   // 3. Подключаем логику страницы
   setMeta(view);
+  shown = view;
   cleanup = view.mount ? view.mount(layout.slot, { ...ctx, navigate: router.navigate }) || null : null;
   // Фокус на заголовок — только если страница сама не поставила фокус в поле (автофокус на десктопе)
   if (!first && ctx.mode !== 'pop' && !layout.slot.contains(document.activeElement)) focusHeading();
@@ -87,3 +92,8 @@ async function onRoute(view, ctx) {
 const router = createRouter({ routes, notFound, onRoute });
 export const { navigate } = router;
 export const start = () => router.start();
+/** Сервер сказал, что сессии нет (истекла/заблокирован): обновляем шапку и уводим со закрытых страниц. */
+export const onSessionLost = () => {
+  updateNav(location.pathname);
+  if (shown && shown.protected) router.navigate(`/login?next=${encodeURIComponent(location.pathname)}`, { replace: true });
+};

@@ -1,5 +1,6 @@
 const BASE = import.meta.env.VITE_API_URL || '/api';
 const MOCK = import.meta.env.VITE_MOCK === 'true';
+export const IS_MOCK = MOCK;
 
 export class ApiError extends Error {
   constructor(status, code, message, field) {
@@ -35,7 +36,7 @@ const mocks = {
     const e = email.toLowerCase();
     if (e === 'limit@val.gg') throw new ApiError(429, 'rate_limited', '');
     if (e === 'unverified@val.gg') throw new ApiError(403, 'email_not_verified', '');
-    if (e === 'player@val.gg' && password === 'Password1') return { user: { nick: 'Player' } };
+    if (e === 'player@val.gg' && password === 'Password1') return { user: { nick: 'Player', email: e, steam: null, telegram: null } };
     throw new ApiError(401, 'invalid_credentials', '');
   },
   async register({ email, nick }) {
@@ -50,6 +51,23 @@ const mocks = {
     if (email.toLowerCase() === 'limit@val.gg') throw new ApiError(429, 'rate_limited', '');
     return { ok: true };
   },
+  async logout() { await wait(300); return { ok: true }; },
+  async telegramCode() { await wait(500); return { code: String(Math.floor(100000 + Math.random() * 900000)), bot: '@val_league_bot' }; },
+  async telegramCheck() { await wait(900); return { telegram: { username: 'player_tg' } }; },
+  async telegramUnlink() { await wait(500); return { ok: true }; },
+  async steamLink() { await wait(900); return { steam: { name: 'Player', id: '76561198000000000' } }; },
+  async updateProfile({ nick }) {
+    await wait(700);
+    if (nick.toLowerCase() === 'taken') throw new ApiError(409, 'nick_taken', '', 'nick');
+    return { user: { nick } };
+  },
+  async changePassword({ current }) {
+    await wait(900);
+    if (current !== 'Password1') throw new ApiError(401, 'invalid_credentials', '', 'current'); // демо-пароль player@val.gg
+    return { ok: true };
+  },
+  async saveNotifications(d) { await wait(350); return d; },
+  async deleteAccount() { await wait(900); return { ok: true }; },
   // Демо: /verify-email?token=demo — успех, ?token=expired — ссылка устарела
   async verifyEmail({ token }) {
     await wait(900);
@@ -76,7 +94,24 @@ export const auth = {
   verifyEmail: (d) => post('/auth/verify-email', d, mocks.verifyEmail),
   resendVerification: (d) => post('/auth/resend-verification', d, mocks.resendVerification),
   resetPassword: (d) => post('/auth/reset-password', d, mocks.resetPassword),
+  me: () => request('/auth/me'),
   steamUrl: () => `${BASE}/auth/steam`,
+};
+
+export const account = {
+  logout: () => post('/auth/logout', {}, mocks.logout),
+  telegramCode: () => post('/account/telegram/code', {}, mocks.telegramCode),
+  telegramCheck: () => post('/account/telegram/check', {}, mocks.telegramCheck),
+  telegramUnlink: () => post('/account/telegram/unlink', {}, mocks.telegramUnlink),
+  /** Демо привязывает Steam сразу; на сервере это переход на OpenID: /auth/steam?link=1 */
+  steamLink: () => (MOCK ? mocks.steamLink() : location.assign(`${BASE}/auth/steam?link=1`)),
+};
+
+export const settings = {
+  updateProfile: (d) => post('/account/profile', d, mocks.updateProfile),
+  changePassword: (d) => post('/account/password', d, mocks.changePassword),
+  saveNotifications: (d) => post('/account/notifications', d, mocks.saveNotifications),
+  deleteAccount: (d) => post('/account/delete', d, mocks.deleteAccount),
 };
 
 export const COMMON_ERRORS = {

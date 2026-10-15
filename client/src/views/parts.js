@@ -38,3 +38,5 @@ export const submitBtn = (label) => `<button type="submit" class="btn btn-primar
 export const bannerEl = '<div class="banner" id="banner" role="alert" hidden></div>';
 
 export const STRENGTH_LABELS = ['', 'Слабый пароль', 'Средний пароль', 'Хороший пароль', 'Надёжный пароль'];
+
+export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

@@ -2,6 +2,7 @@ import { $, passwordHelpers, formKit, finePointer } from '../js/ui.js';
 import { emailError, loginPasswordError, safeNext } from '../js/validators.js';
 import { auth, ApiError, serverFallback } from '../js/api.js';
 import { savePending } from '../js/pending.js';
+import { setUser } from '../js/session.js';
 import { ICON, emailField, passwordField, submitBtn, bannerEl } from './parts.js';
 
 const MESSAGES = {
@@ -35,6 +36,7 @@ export default {
     const kit = formKit(form, { email: emailError, password: loginPasswordError });
     passwordHelpers();
     const next = () => query.get('next');
+    if (query.get('error') === 'steam_soon') kit.show('Вход через Steam появится позже. Пока войдите по почте или создайте аккаунт.');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -45,9 +47,10 @@ export default {
 
       kit.setBusy(true, 'Войти', 'Входим…');
       try {
-        await auth.login({ email: form.email.value.trim(), password: form.password.value, remember: form.remember.checked });
+        const res = await auth.login({ email: form.email.value.trim(), password: form.password.value, remember: form.remember.checked });
+        setUser(res.user, form.remember.checked);
         kit.show('Вход выполнен. Перенаправляем…', true);
-        navigate(safeNext(next()));
+        navigate(safeNext(next(), '/account'));
       } catch (err) {
         const e2 = err instanceof ApiError ? err : new ApiError(0, 'network', '');
         if (e2.code === 'email_not_verified') {

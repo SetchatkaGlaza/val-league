@@ -1,4 +1,5 @@
 import { gsap, motion, $, $$, tween } from './ui.js';
+import { getUser } from './session.js';
 import shield from '../assets/logo-shield.png';
 import logoHeader from '../assets/logo-header.png';
 
@@ -80,6 +81,8 @@ export function updateNav(path) {
   $$('.doc-nav a[data-nav]').forEach((a) => {
     if (a.dataset.nav === path) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
+  const me = $('.doc-login'), user = getUser();
+  if (me) { me.textContent = user ? user.nick : 'Войти'; me.setAttribute('href', user ? '/account' : '/login'); }
 }
 
 export const fadeOut = (el, d = .22) => (motion ? tween(el, { opacity: 0, duration: d, ease: 'power2.in' }) : Promise.resolve());

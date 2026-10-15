@@ -7,8 +7,10 @@ cp server/.env.example server/.env
 npm install        # ставит клиент и сервер (workspaces)
 npm run dev        # клиент :5173, сервер :4000
 ```
-Только клиент: `npm run dev:client`. Демо-вход без сервера включён по умолчанию (`VITE_MOCK=true`):
+Только клиент: `npm run dev:client`. Вход и регистрация работают с сервером и БД (см. `docs/AUTH.md`). Демо без сервера: `VITE_MOCK=true` в `client/.env`:
 `player@val.gg` / `Password1` — успех; `unverified@val.gg` — почта не подтверждена; `limit@val.gg` — лимит попыток; любые другие — неверный пароль.
+
+База данных (PostgreSQL): см. `docs/DATABASE.md` — `npm run db:up`, `npm run db:migrate`.
 
 Демо-ссылки из писем: `/verify-email?token=demo` (успех), `/verify-email?token=expired` (ссылка устарела),
 `/reset-password?token=demo` (успех), `/reset-password?token=expired` (ссылка устарела).
@@ -39,4 +41,3 @@ location /api/ { proxy_pass http://127.0.0.1:4000; }
 location /     { root /var/www/val/client/dist; try_files $uri /index.html; }
 ```
 Сборка: `npm run build` → `client/dist`.
-# val-league

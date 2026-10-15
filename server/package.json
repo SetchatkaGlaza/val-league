@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "nodemon src/index.js", "start": "node src/index.js" },
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "db:migrate": "node src/db/migrate.js"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
@@ -16,7 +20,10 @@
     "nodemailer": "^6.9.15",
     "passport": "^0.7.0",
     "passport-steam": "^1.0.18",
+    "pg": "^8.13.0",
     "zod": "^3.23.8"
   },
-  "devDependencies": { "nodemon": "^3.1.0" }
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
 }

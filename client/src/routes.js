@@ -3,8 +3,11 @@ import register from './views/register.js';
 import forgot from './views/forgot.js';
 import verifyEmail from './views/verify-email.js';
 import resetPassword from './views/reset-password.js';
+import account from './views/account.js';
+import settingsPage from './views/settings.js';
 import { rules, privacy } from './views/docs.js';
-import { home, notFound } from './views/stubs.js';
+import home from './views/home.js';
+import { notFound } from './views/stubs.js';
 
 // Новая страница: файл в src/views + строка здесь. Все страницы входят в один бандл,
 // поэтому переходы между ними мгновенные — без запросов к серверу.
@@ -15,6 +18,8 @@ export const routes = {
   '/forgot': forgot,
   '/verify-email': verifyEmail,
   '/reset-password': resetPassword,
+  '/account': account,
+  '/settings': settingsPage,
   '/rules': rules,
   '/privacy': privacy,
 };
