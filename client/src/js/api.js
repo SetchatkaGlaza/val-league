@@ -153,6 +153,15 @@ export const tournaments = {
   winners: live((limit = 3) => request(`/winners?limit=${limit}`)),
 };
 
+/** Сетка и матчи: публичные страницы (вход нужен только для «Моих матчей»). */
+export const bracket = {
+  get: live((slug) => request(`/tournaments/${enc(slug)}/bracket`)),
+};
+export const matches = {
+  get: live((id) => request(`/matches/${enc(id)}`)),
+  mine: live(() => request('/matches/mine')),
+};
+
 export const registrations = {
   eligibility: live((slug) => request(`/tournaments/${enc(slug)}/registration`)),
   create: live((slug, d) => send('POST', `/tournaments/${enc(slug)}/registrations`, d)),
@@ -175,6 +184,13 @@ export const admin = {
   confirm: live((id, note) => send('POST', `/admin/registrations/${enc(id)}/confirm`, note ? { note } : {})),
   cancelReg: live((id, note) => send('POST', `/admin/registrations/${enc(id)}/cancel`, note ? { note } : {})),
   refunded: live((id) => send('POST', `/admin/registrations/${enc(id)}/refunded`, {})),
+  // Сетка и результаты (этап 5)
+  bracket: live((id) => request(`/admin/tournaments/${enc(id)}/bracket`)),
+  generateBracket: live((id, d) => send('POST', `/admin/tournaments/${enc(id)}/bracket`, d)),
+  removeBracket: live((id) => send('DELETE', `/admin/tournaments/${enc(id)}/bracket`)),
+  setResult: live((id, d) => send('PUT', `/admin/matches/${enc(id)}/result`, d)),
+  patchMatch: live((id, d) => send('PATCH', `/admin/matches/${enc(id)}`, d)),
+  scheduleBracket: live((id, d) => send('POST', `/admin/tournaments/${enc(id)}/schedule`, d)),
 };
 
 export const logoUrl = (file) => (file ? `${BASE}/files/logos/${file}` : null);

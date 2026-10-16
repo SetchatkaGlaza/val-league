@@ -12,6 +12,8 @@ import team from './views/team.js';
 import invite from './views/invite.js';
 import tournamentsList from './views/tournaments.js';
 import tournament from './views/tournament.js';
+import bracketPage from './views/bracket.js';
+import matchPage from './views/match.js';
 import teamsList from './views/teams-list.js';
 import adminHome from './views/admin.js';
 import adminTournament from './views/admin-tournament.js';
@@ -42,6 +44,8 @@ export const routes = {
 const dynamic = [
   [/^\/teams\/([a-z0-9-]{1,40})$/, 'slug', team],
   [/^\/tournaments\/([a-z0-9-]{1,40})$/, 'slug', tournament],
+  [/^\/tournaments\/([a-z0-9-]{1,40})\/bracket$/, 'slug', bracketPage],
+  [/^\/matches\/([0-9a-f-]{36})$/i, 'id', matchPage],
   [/^\/admin\/tournaments\/([0-9a-f-]{36})$/i, 'id', adminTournament],
 ];
 

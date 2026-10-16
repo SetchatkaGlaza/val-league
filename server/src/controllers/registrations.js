@@ -3,7 +3,7 @@ import { query, withTx } from '../db/index.js';
 import { config } from '../config.js';
 import { HttpError, parse, uuid } from '../utils/http.js';
 import {
-  ACTIVE, OCCUPY, canRegister, beforeClose, closesAt, payUntil, newPaymentCode, occupiedCount, promoteWaitlist, validateRoster,
+  ACTIVE, OCCUPY, canRegister, beforeClose, closesAt, payUntil, newPaymentCode, occupiedCount, promoteWaitlist, validateRoster, invalidateBracket,
 } from '../services/registrations.js';
 
 const R = config.registration;
@@ -130,6 +130,7 @@ export async function create(req, res) {
          (tournament_id, team_id, team_name, status, roster, roster_ids, registered_by, fee, payment_code, pay_until, paid_at)
        VALUES ($1, $2, $3, $4, $5::jsonb, $6::uuid[], $7, $8, $9, $10, $11) RETURNING id`,
       [t.id, team.id, team.name, status, JSON.stringify(roster), roster.map((p) => p.id), req.user.id, t.fee, await newPaymentCode(db), until, paidAt]);
+    if (status === 'paid') await invalidateBracket(db, t);   // бесплатный турнир: команда сразу подтверждена
     return reload(db, row.id);
   }).catch((e) => { throw e.code === '23505' && /team_active/.test(e.constraint || '') ? new HttpError(409, 'already_registered') : e; });
   res.status(201).json({ registration: reg });
@@ -162,6 +163,7 @@ export async function cancel(req, res) {
       `UPDATE tournament_registrations
           SET refund_due = (status = 'paid'), status = 'cancelled', cancel_reason = 'captain', pay_until = NULL, updated_at = now()
         WHERE id = $1`, [r.id]);
+    if (r.status === 'paid') await invalidateBracket(db, t);
     if (OCCUPY.includes(r.status)) await promoteWaitlist(db, t);
     return reload(db, r.id);
   });

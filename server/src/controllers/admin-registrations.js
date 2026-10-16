@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { query, withTx } from '../db/index.js';
 import { HttpError, parse, uuid } from '../utils/http.js';
-import { ACTIVE, OCCUPY, occupiedCount, promoteWaitlist, validateRoster } from '../services/registrations.js';
+import { ACTIVE, OCCUPY, occupiedCount, promoteWaitlist, validateRoster, invalidateBracket } from '../services/registrations.js';
 import { REG_SELECT, serializeReg } from './registrations.js';
 
 const noteSchema = z.object({ note: z.string().trim().max(300).optional() });
@@ -62,6 +62,7 @@ export async function confirm(req, res) {
       `UPDATE tournament_registrations
           SET status = 'paid', cancel_reason = NULL, pay_until = NULL, paid_at = now(), confirmed_by = $2, note = COALESCE($3, note), updated_at = now()
         WHERE id = $1`, [r.id, req.user.id, d.note ?? null]);
+    await invalidateBracket(db, t);   // новая оплаченная команда: сетку нужно сформировать заново
     return reload(db, r.id);
   });
   res.json({ registration: reg });
@@ -73,10 +74,13 @@ export async function cancel(req, res) {
   const reg = await withTx(async (db) => {
     const { t, r } = await lockReg(db, req.params.id);
     if (!ACTIVE.includes(r.status)) throw new HttpError(409, 'not_active');
+    // В идущем турнире снятие команды ломает сетку: такие случаи решаются результатом матча (техническое поражение)
+    if (t.status === 'live' && r.status === 'paid') throw new HttpError(409, 'tournament_live');
     await db.query(
       `UPDATE tournament_registrations
           SET refund_due = (status = 'paid'), status = 'cancelled', cancel_reason = 'admin', pay_until = NULL, note = COALESCE($2, note), updated_at = now()
         WHERE id = $1`, [r.id, d.note ?? null]);
+    if (r.status === 'paid') await invalidateBracket(db, t);
     if (OCCUPY.includes(r.status)) await promoteWaitlist(db, t);
     return reload(db, r.id);
   });

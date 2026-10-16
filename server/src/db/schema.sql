@@ -127,3 +127,45 @@ CREATE UNIQUE INDEX IF NOT EXISTS tr_team_active_uq ON tournament_registrations 
 CREATE INDEX IF NOT EXISTS tr_tournament_idx ON tournament_registrations (tournament_id, status, created_at);
 CREATE INDEX IF NOT EXISTS tr_team_idx ON tournament_registrations (team_id);
 CREATE INDEX IF NOT EXISTS tr_roster_gin ON tournament_registrations USING gin (roster_ids);
+
+-- ---------- Сетка и матчи (этап 5 ТЗ) ----------
+-- Single Elimination. Команды — это оплаченные заявки (reg_a / reg_b); названия сохранены снимком, чтобы история не менялась.
+-- Статусы: pending — ждёт участников, ready — оба известны, live — идёт, finished — сыгран (или bye — проход без игры).
+-- Счёт: для BO1 — раунды (13:7), для BO3 — выигранные карты (2:1).
+CREATE TABLE IF NOT EXISTS matches (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id  uuid NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  round          smallint NOT NULL CHECK (round >= 1),         -- 1 — первый раунд, последний — финал
+  position       smallint NOT NULL CHECK (position >= 1),      -- номер матча в раунде, сверху вниз
+  reg_a          uuid REFERENCES tournament_registrations(id) ON DELETE SET NULL,
+  reg_b          uuid REFERENCES tournament_registrations(id) ON DELETE SET NULL,
+  name_a         text,
+  name_b         text,
+  seed_a         smallint,                                     -- сид в сетке (только первый раунд и bye-проходы)
+  seed_b         smallint,
+  score_a        smallint,
+  score_b        smallint,
+  winner         text CHECK (winner IN ('a', 'b')),
+  bye            boolean NOT NULL DEFAULT false,
+  status         text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'ready', 'live', 'finished')),
+  starts_at      timestamptz,
+  lobby          text,                                         -- данные для подключения; видны только участникам матча и админам
+  demo_url       text,
+  next_match_id  uuid REFERENCES matches(id) ON DELETE SET NULL,
+  next_slot      text CHECK (next_slot IN ('a', 'b')),
+  finished_at    timestamptz,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tournament_id, round, position)
+);
+CREATE INDEX IF NOT EXISTS matches_tournament_idx ON matches (tournament_id, round, position);
+CREATE INDEX IF NOT EXISTS matches_reg_a_idx ON matches (reg_a);
+CREATE INDEX IF NOT EXISTS matches_reg_b_idx ON matches (reg_b);
+
+-- ---------- Этап 5.3: техническое поражение, неявка, счёт по картам ----------
+-- forfeit — сторона, проигравшая без игры ('a' | 'b'), forfeit_reason — причина: tech (техническое поражение) или noshow (неявка).
+-- Счёт при этом записывается как 13:0 (BO1) или 2:0 (BO3), чтобы сетка и «Мои матчи» работали без особых случаев.
+-- maps — счёт по картам для BO3: [{ "map": "de_mirage", "a": 13, "b": 7, "demoUrl": "https://…" }]; заполняется начиная с 5.3b.
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS forfeit        text CHECK (forfeit IN ('a', 'b'));
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS forfeit_reason text CHECK (forfeit_reason IN ('tech', 'noshow'));
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS maps           jsonb;

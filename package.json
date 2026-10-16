@@ -15,8 +15,10 @@
     "format": "prettier --write .",
     "db:up": "docker compose up -d db",
     "db:migrate": "npm run db:migrate -w server",
+    "db:seed": "npm run db:seed -w server --",
     "admin:make": "npm run admin:make -w server --",
-    "smoke": "npm run smoke -w server"
+    "smoke": "npm run smoke -w server",
+    "test": "npm run test -w server"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

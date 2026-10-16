@@ -36,6 +36,14 @@ export async function occupiedCount(db, tournamentId) {
 }
 
 /**
+ * Состав оплаченных команд изменился (кто-то оплатил, отказался, снят): готовая сетка устарела, её нужно сформировать заново.
+ * Пока турнир не начался, сетку просто удаляем (админ перегенерирует); у идущего турнира состав меняться не должен (см. controllers).
+ */
+export async function invalidateBracket(db, t) {
+  if (t.status === 'upcoming') await db.query('DELETE FROM matches WHERE tournament_id = $1', [t.id]);
+}
+
+/**
  * Освободилось место (отмена, истёк срок оплаты, вырос лимит) — первые в листе ожидания занимают его.
  * Вызывать в транзакции, когда строка турнира уже заблокирована (SELECT … FOR UPDATE).
  * После закрытия регистрации лист не двигается: у новой команды не осталось бы времени на оплату и смену состава.
@@ -56,6 +64,7 @@ export async function promoteWaitlist(db, t) {
       [r.id, isFree ? 'paid' : 'pending_payment', t.fee, isFree ? null : payUntil(t), isFree ? new Date() : null]);
     promoted.push(r.id);
     free--;
+    if (isFree) await invalidateBracket(db, t);   // бесплатная заявка сразу «оплачена»: состав сетки изменился
   }
   return promoted;
 }

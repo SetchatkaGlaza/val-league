@@ -39,6 +39,7 @@ function page(d) {
       <h1>${esc(t.name)}</h1>
       <ul class="chips"><li>${dateLong(t.startsAt)}</li><li>${formatLine(t)}</li><li>${feeLine(t)}</li></ul>
       <div class="slots"><div class="slots-bar"><i style="width:${s.pct}%"></i></div><span>${s.text} · ${s.left}</span></div>
+      ${t.hasBracket || t.status === 'live' || t.status === 'finished' ? `<p class="t-bracket-link"><a class="btn btn-ghost btn-sm" href="/tournaments/${esc(t.slug)}/bracket">${upcoming ? 'Предварительная сетка' : 'Турнирная сетка'}</a></p>` : ''}
     </div>
     ${upcoming ? `<div class="t-timer"><p class="label">До старта</p>${countdownHtml(t.startsAt)}</div>` : ''}
   </section>

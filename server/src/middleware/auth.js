@@ -25,7 +25,7 @@ export function sameOrigin(req, res, next) {
 
 /** Лимит на действия с командами: считается по пользователю, а не по IP (за одним IP может сидеть вся компания в клубе). */
 export const writeLimiter = rateLimit({
-  windowMs: 15 * 60_000, limit: 80, standardHeaders: 'draft-7', legacyHeaders: false, handler: limited,
+  windowMs: 15 * 60_000, limit: Number(process.env.WRITE_LIMIT) || 80, standardHeaders: 'draft-7', legacyHeaders: false, handler: limited,
   keyGenerator: (req) => req.user?.id || req.ip,
 });
 

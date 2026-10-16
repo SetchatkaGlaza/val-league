@@ -122,6 +122,13 @@ export async function setStatus(req, res) {
     if (d.status === 'upcoming' && !isFuture(t.starts_at)) throw new HttpError(409, 'start_in_past');
     // Черновик «невидим»: нельзя прятать турнир, на который уже кто-то записался
     if (d.status === 'draft' && t.teams_count + t.waitlist_count > 0) throw new HttpError(409, 'has_registrations');
+    const { rows: [fin] } = await db.query(
+      `SELECT count(*)::int AS total, count(*) FILTER (WHERE next_match_id IS NULL AND status = 'finished')::int AS final_done FROM matches WHERE tournament_id = $1`, [t.id]);
+    // Начать турнир можно, только когда сформирована сетка; закрыть вручную — только если нет сетки или финал сыгран
+    if (d.status === 'live' && !fin.total) throw new HttpError(409, 'bracket_required');
+    if (d.status === 'finished' && fin.total && !fin.final_done) throw new HttpError(409, 'matches_unfinished');
+    // Черновик и восстановление отменённого турнира начинают с чистой сетки (заявки отменённого уже сняты)
+    if (d.status === 'draft' || t.status === 'cancelled') await db.query('DELETE FROM matches WHERE tournament_id = $1', [t.id]);
     if (d.status === 'live') await cancelWhere(db, t.id, ['pending_payment', 'waitlist'], 'tournament_started');   // неоплаченные и лист ожидания не играют
     if (d.status === 'cancelled') await cancelWhere(db, t.id, ['pending_payment', 'paid', 'waitlist'], 'tournament_cancelled');   // оплаченным вернуть взнос
     const winner = d.status === 'finished' ? { name: d.winnerName || null, roster: d.winnerRoster || [] } : { name: t.winner_name, roster: t.winner_roster };

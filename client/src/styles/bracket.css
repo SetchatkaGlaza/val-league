@@ -1,0 +1,147 @@
+/* Сетка, матч и управление ими (этап 5.2) */
+
+#bBody, #mBody { display: grid; gap: 18px; min-width: 0; }
+
+/* --- Сетка ------------------------------------------------------------------ */
+.bk-page { max-width: 1280px; }
+.bk-hero { flex-wrap: wrap; justify-content: space-between; align-items: stretch; }
+.bk-hero h1 { margin: 0 0 12px; display: block; }
+.bk-hero .label { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.bk-champ { align-self: center; padding: 14px 22px; border: 1px solid rgba(244,17,44,.45); border-radius: 16px; background: radial-gradient(260px 90px at 50% 0, rgba(244,17,44,.2), transparent 70%), rgba(255,255,255,.03); text-align: center; }
+.bk-champ .label { margin: 0 0 2px; }
+.bk-champ b { font: 700 clamp(1.5rem, 4vw, 2.1rem)/1.1 var(--font-head); text-transform: uppercase; color: var(--accent-2); overflow-wrap: anywhere; }
+
+.bk-jump { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.bk-jump::-webkit-scrollbar { display: none; }
+.bk-chip { flex: none; min-height: 38px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.04); color: var(--muted); font-size: .88rem; font-weight: 600; cursor: pointer; transition: color .2s, border-color .2s; }
+.bk-chip:hover { color: var(--text); border-color: rgba(244,17,44,.5); }
+.bk-hint { margin: 0; color: var(--muted); font-size: .85rem; }
+
+.bk-scroll { --bk-w: 236px; --bk-gap: 48px; overflow-x: auto; overscroll-behavior-x: contain; padding: 6px 4px 18px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,255,255,.02); scroll-snap-type: x proximity; scroll-padding-left: 12px; }
+.bk-scroll:focus-visible { outline-offset: 2px; }
+.bk { position: relative; display: flex; gap: var(--bk-gap); width: max-content; min-width: 100%; padding: 16px 20px 8px; }
+.bk-col { flex: none; width: var(--bk-w); display: flex; flex-direction: column; scroll-snap-align: start; }
+.bk-h { margin: 0 0 12px; font: 700 1rem/1 var(--font-head); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.bk-col.final .bk-h { color: var(--accent-2); }
+.bk-slots { flex: 1; display: flex; flex-direction: column; }
+.bk-slot { position: relative; flex: 1; display: flex; align-items: center; min-height: 124px; }
+
+/* Линии: каждая пара матчей сходится в следующий. Места делят высоту колонки поровну, поэтому всё выстраивается само. */
+.bk-col:not(.final) .bk-slot::after { content: ''; position: absolute; left: 100%; top: 50%; width: calc(var(--bk-gap) / 2); border-top: 2px solid rgba(255,255,255,.16); }
+.bk-col:not(.final) .bk-slot::before { content: ''; position: absolute; left: calc(100% + var(--bk-gap) / 2 - 2px); width: 0; height: 50%; border-right: 2px solid rgba(255,255,255,.16); }
+.bk-col:not(.final) .bk-slot:nth-child(odd)::before { top: 50%; }
+.bk-col:not(.final) .bk-slot:nth-child(even)::before { top: 0; }
+.bk-col:not(:first-child) .bk-m::before { content: ''; position: absolute; right: 100%; top: 50%; width: calc(var(--bk-gap) / 2); border-top: 2px solid rgba(255,255,255,.16); }
+
+.bk-m { position: relative; display: block; width: 100%; overflow: visible; text-decoration: none; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(160deg, rgba(26,26,29,.95), rgba(14,14,16,.96)); transition: border-color .2s, transform .25s var(--ease); }
+a.bk-m:hover, a.bk-m:focus-visible { border-color: rgba(244,17,44,.6); transform: translateY(-2px); }
+.bk-m.live { border-color: rgba(244,17,44,.7); box-shadow: 0 0 0 1px rgba(244,17,44,.25), 0 14px 34px -16px rgba(244,17,44,.7); }
+.bk-m.bye { border-style: dashed; opacity: .6; }
+.bk-t { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 38px; padding: 6px 10px; }
+.bk-t:first-child { border-radius: 11px 11px 0 0; } .bk-t:nth-child(2):last-child { border-radius: 0 0 11px 11px; }
+.bk-t + .bk-t { border-top: 1px solid var(--line); }
+.bk-seed { color: var(--muted); font-size: .72rem; text-align: center; font-variant-numeric: tabular-nums; }
+.bk-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .92rem; }
+.bk-s { min-width: 1.4em; text-align: right; font: 700 1.1rem/1 var(--font-head); font-variant-numeric: tabular-nums; }
+.bk-t.win { background: rgba(244,17,44,.14); } .bk-t.win .bk-n { font-weight: 600; } .bk-t.win .bk-s { color: #fff; }
+.bk-t.lose { color: var(--muted); }
+.bk-t.tbd .bk-n { color: var(--muted); font-style: italic; }
+.bk-foot { padding: 4px 10px 6px; border-top: 1px solid var(--line); border-radius: 0 0 11px 11px; color: var(--muted); font-size: .74rem; }
+.bk-live { color: var(--accent-2); font-weight: 600; }
+.bk-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.4s ease-in-out infinite; }
+.t-bracket-link { margin: 14px 0 0; }
+
+@media (max-width: 640px) {
+  .bk-scroll { --bk-w: 208px; --bk-gap: 36px; border-radius: 16px; margin-inline: -4px; }
+  .bk { padding-inline: 14px; }
+  .bk-t { min-height: 40px; }
+}
+
+/* --- Страница матча ---------------------------------------------------------- */
+.mt-hero h1 { margin: 0 0 12px; display: block; font-size: clamp(1.5rem, 4vw, 2.2rem); }
+.mt-hero .label { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.mt-board { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: clamp(10px, 3vw, 28px); padding: clamp(18px, 4vw, 32px); border: 1px solid var(--line); border-radius: 22px; background: radial-gradient(600px 180px at 50% 0, rgba(244,17,44,.12), transparent 70%), rgba(255,255,255,.03); }
+.mt-team { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; min-width: 0; }
+.mt-team .tm-logo { width: 84px; height: 84px; }
+.mt-name { display: grid; gap: 2px; min-width: 0; }
+.mt-name b { font: 700 clamp(1.15rem, 3.4vw, 1.6rem)/1.1 var(--font-head); text-transform: uppercase; overflow-wrap: anywhere; }
+.mt-name span { color: var(--muted); font-size: .82rem; }
+.mt-team.lose { opacity: .6; }
+.mt-team.win .mt-name b { color: var(--accent-2); }
+.mt-mid { display: grid; justify-items: center; gap: 4px; }
+.mt-vs { font: 700 1.6rem var(--font-head); color: var(--muted); letter-spacing: .1em; }
+.mt-score { display: flex; align-items: baseline; gap: 8px; font: 700 clamp(2.4rem, 9vw, 4rem)/1 var(--font-head); font-variant-numeric: tabular-nums; }
+.mt-score i { color: var(--muted); font-style: normal; }
+.mt-score b { color: var(--muted); } .mt-score b.w { color: #fff; }
+.mt-mid small { color: var(--muted); font-size: .76rem; }
+.lobby { margin: 0 0 12px; padding: 14px; border-radius: 12px; border: 1px dashed rgba(244,17,44,.45); background: rgba(0,0,0,.4); font: 500 .95rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; user-select: all; }
+.pw { font-weight: 700; color: var(--text); }
+.mt-demo { margin: 10px 0 0; }
+.mt-links { margin-top: 12px; }
+@media (max-width: 560px) {
+  .mt-board { grid-template-columns: 1fr; }
+  .mt-team { flex-direction: row; text-align: left; }
+  .mt-team .tm-logo { width: 56px; height: 56px; }
+  .mt-mid { padding: 4px 0; }
+}
+
+/* --- Админка: сетка и матчи ---------------------------------------------------- */
+.bk-admin { display: grid; gap: 6px; }
+.bk-admin .adm-status-top { margin-bottom: 0; }
+.bk-gen { display: grid; gap: 12px; max-width: 560px; margin: 4px 0 10px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.bk-gen .field { margin: 0; }
+.seed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; counter-reset: none; }
+.seed-list li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.03); }
+.seed-n { color: var(--accent-2); font: 700 1.1rem var(--font-head); text-align: center; }
+.seed-t { overflow-wrap: anywhere; }
+.seed-b { display: flex; gap: 6px; }
+.bm-round { margin: 18px 0 8px; font: 700 1rem/1 var(--font-head); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.bm-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.bm { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.025); }
+.bm.dim { opacity: .55; }
+.bm-main { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.bm-teams { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.bm-teams i { color: var(--muted); font-style: normal; }
+.bm-score { font: 700 1.3rem/1 var(--font-head); font-variant-numeric: tabular-nums; }
+.bm-meta { color: var(--muted); font-size: .78rem; }
+.bm-act { display: flex; gap: 8px; flex-wrap: wrap; }
+.bm-act .btn-xs { display: inline-flex; align-items: center; }
+.bm-form { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); max-width: 520px; }
+.bm-form .field { margin: 0; }
+.bm-form .acc-sub { margin: 0; }
+.bm-score-in { display: flex; align-items: flex-end; gap: 10px; }
+.bm-score-in i { padding-bottom: 12px; color: var(--muted); font-style: normal; font-size: 1.4rem; }
+.bm-score-in label { display: grid; gap: 4px; flex: 1; min-width: 0; font-size: .85rem; color: var(--muted); }
+.bm-score-in label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bm-score-in input, .bm-form .control input, .bm-form .control textarea { color-scheme: dark; }
+.bm-score-in input { width: 100%; height: 48px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.04); font: 700 1.3rem var(--font-head); text-align: center; }
+.bm-form label { display: grid; gap: 6px; font-size: .88rem; color: var(--muted); }
+.bm-form .err:empty { display: none; }
+
+/* 5.3a: результат без игры и массовое расписание */
+.bm-form [hidden] { display: none !important; }
+.bm-loser { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.bm-loser legend { padding: 0; margin-bottom: 6px; font-size: .88rem; color: var(--muted); }
+.bm-loser .hint-mut { margin: 2px 0 0; }
+.bk-sched { margin: 8px 0 14px; padding: 14px 0 0; }
+.bk-sched .bm-round { margin: 0; }
+.bk-sched-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bk-sched-open { margin: 0 0 10px; }
+@media (max-width: 420px) { .bk-sched-row { grid-template-columns: 1fr; } }
+.bm-form label.check { display: inline-flex; gap: 10px; font-size: .92rem; color: #d4d4d8; }
+.bm-form label.check.block { align-items: flex-start; }
+.bm-loser .check .box { border-radius: 50%; }
+
+/* 5.3b: счёт по картам BO3 */
+.bm-map { display: grid; gap: 10px; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+.bm-map legend { padding: 0 6px; font-size: .82rem; color: var(--muted); }
+.bm-map .field { margin: 0; }
+.mp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mp-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.03); }
+.mp-n { color: var(--muted); font-size: .85rem; text-align: center; }
+.mp-map { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-s { display: inline-flex; align-items: baseline; gap: 4px; font: 700 1.1rem var(--font-head); }
+.mp-s i { color: var(--muted); font-style: normal; }
+.mp-s .w { color: var(--accent); }
+.mp-demo { min-width: 44px; text-align: right; font-size: .88rem; }
+@media (max-width: 420px) { .mp-row { grid-template-columns: 20px minmax(0, 1fr) auto; } .mp-demo { grid-column: 2 / -1; text-align: left; } .mp-demo:empty { display: none; } }

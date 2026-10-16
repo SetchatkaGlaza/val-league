@@ -14,7 +14,8 @@ export const TSELECT = `
   SELECT t.*,
     (SELECT count(*)::int FROM tournament_registrations r WHERE r.tournament_id = t.id AND r.status IN ('pending_payment', 'paid')) AS teams_count,
     (SELECT count(*)::int FROM tournament_registrations r WHERE r.tournament_id = t.id AND r.status = 'paid') AS paid_count,
-    (SELECT count(*)::int FROM tournament_registrations r WHERE r.tournament_id = t.id AND r.status = 'waitlist') AS waitlist_count
+    (SELECT count(*)::int FROM tournament_registrations r WHERE r.tournament_id = t.id AND r.status = 'waitlist') AS waitlist_count,
+    EXISTS (SELECT 1 FROM matches m WHERE m.tournament_id = t.id) AS has_bracket
   FROM tournaments t`;
 
 export const prizeTotal = (places) => (places || []).reduce((s, p) => s + p.amount, 0);
@@ -36,6 +37,7 @@ export const serialize = (t) => ({
   teamsCount: t.teams_count ?? 0,
   paidCount: t.paid_count ?? 0,
   waitlistCount: t.waitlist_count ?? 0,
+  hasBracket: !!t.has_bracket,
   canRegister: canRegister(t),
   registrationClosesAt: closesAt(t),
   mapPool: t.map_pool,

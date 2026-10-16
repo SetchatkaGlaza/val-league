@@ -10,6 +10,7 @@ import accountRoutes from './routes/account.js';
 import tournamentRoutes, { winnersRoutes } from './routes/tournaments.js';
 import adminRoutes from './routes/admin.js';
 import registrationRoutes from './routes/registrations.js';
+import matchRoutes from './routes/matches.js';
 import { sweepExpired } from './services/registrations.js';
 import { ping } from './db/index.js';
 import { config } from './config.js';
@@ -26,7 +27,7 @@ app.use(cookieParser());
 // Файлы (логотипы) раздаём до общего лимита запросов: на странице турнира их десятки. Имена случайные, поэтому кэш «навсегда».
 app.use('/api/files', (_req, res, next) => { res.set('Cross-Origin-Resource-Policy', 'cross-origin'); next(); },
   express.static(config.uploadsDir, { maxAge: '30d', immutable: true, index: false, dotfiles: 'deny' }));
-app.use('/api', rateLimit({ windowMs: 60_000, limit: 120 }));
+app.use('/api', rateLimit({ windowMs: 60_000, limit: Number(process.env.API_LIMIT) || 120 }));   // API_LIMIT / WRITE_LIMIT повышают лимиты только для автопроверки (npm run smoke)
 app.use('/api', sameOrigin);
 
 app.get('/api/health', async (_req, res) => res.json({ ok: true, db: await ping() }));
@@ -37,6 +38,7 @@ app.use('/api/account', accountRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/winners', winnersRoutes);
 app.use('/api/registrations', registrationRoutes);
+app.use('/api/matches', matchRoutes);
 app.use('/api/admin', adminRoutes);
 app.use((_req, res) => res.status(404).json({ code: 'not_found' }));
 app.use((err, _req, res, _next) => {

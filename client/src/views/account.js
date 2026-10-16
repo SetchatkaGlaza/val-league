@@ -1,10 +1,11 @@
 import { $, $$, gsap, motion } from '../js/ui.js';
-import { account, auth, teams, invites, registrations as registrationsApi, ApiError, serverFallback } from '../js/api.js';
+import { account, auth, teams, invites, registrations as registrationsApi, matches as matchesApi, ApiError, serverFallback } from '../js/api.js';
 import { getUser, patchUser, clearUser } from '../js/session.js';
 import { ICON, esc } from './parts.js';
 import { teamLogo, teamError, plural } from './team-parts.js';
 import { regBadge, CANCEL_REASON } from './registration-parts.js';
 import { dateShort, tournamentError } from './tournament-parts.js';
+import { whenShort } from './bracket-parts.js';
 
 const TG = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M21.5 4.3 2.9 11.4c-1.3.5-1.3 1.3-.2 1.6l4.8 1.5 1.8 5.6c.2.6.1.8.7.8.4 0 .6-.2.9-.5l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.7c.3-1.2-.5-1.8-1.5-1.4ZM9 14l9.3-5.9c.4-.3.8-.1.5.2L11.2 15.2l-.3 3.2L9 14Z"/></svg>';
 const empty = (text, hint) => `<div class="acc-empty"><p>${text}</p>${hint ? `<span>${hint}</span>` : ''}</div>`;
@@ -49,6 +50,23 @@ function regsHtml(list) {
       <span class="mem-r">${regBadge(r)}</span></a></li>`).join('')}</ul>${list.length > 8 ? `<p class="hint-mut">Показаны последние 8 заявок.</p>` : ''}`;
 }
 
+/** «Мои матчи»: ближайшие и идущие сверху, затем сыгранные. Соперник и итог показаны с точки зрения команды игрока. */
+function myMatchesHtml(list) {
+  if (!list.length) return empty('Матчей пока нет.', 'Когда ваша команда попадёт в сетку турнира, ближайшие игры и результаты появятся здесь.');
+  const rows = list.slice(0, 8).map((m) => {
+    const me = m.side, op = me === 'a' ? 'b' : 'a';
+    const mine = m[me], other = m[op], myScore = me === 'a' ? m.scoreA : m.scoreB, opScore = me === 'a' ? m.scoreB : m.scoreA;
+    const fin = m.status === 'finished';
+    const badge = fin
+      ? `<span class="st st-${m.winner === me ? 'open' : 'cancel'}">${m.winner === me ? 'Победа' : 'Поражение'} ${myScore}:${opScore}${m.forfeit ? ' (тех.)' : ''}</span>`
+      : m.status === 'live' ? '<span class="st st-live">Идёт</span>'
+        : m.status === 'ready' ? '<span class="st st-soon">Готов к игре</span>' : '<span class="st st-draft">Ждёт соперника</span>';
+    const info = [`Раунд ${m.round}`, fin ? '' : m.startsAt ? whenShort(m.startsAt) : 'время назначат позже', !fin && m.hasLobby ? 'есть данные для подключения' : ''].filter(Boolean).join(' · ');
+    return `<li class="mem"><a class="mem-link" href="/matches/${esc(m.id)}"><span class="mem-t"><b>${esc(mine.name)} — ${other ? esc(other.name) : 'соперник определится'}</b><span>${esc(m.tournament.name)} · ${info}</span></span><span class="mem-r">${badge}</span></a></li>`;
+  }).join('');
+  return `<ul class="mem-list">${rows}</ul>${list.length > 8 ? '<p class="hint-mut">Показаны ближайшие и последние 8 матчей.</p>' : ''}`;
+}
+
 export default {
   layout: 'doc',
   protected: true,
@@ -72,7 +90,7 @@ export default {
         <section class="acc-card" id="teamsCard"><h2>Мои команды</h2><div id="teamsBody"><p class="acc-sub">Загружаем…</p></div></section>
         <section class="acc-card" id="invCard" hidden><h2>Приглашения в команды</h2><div id="invBody"></div></section>
         <section class="acc-card" id="regCard"><h2>Мои турниры</h2><div id="regBody"><p class="acc-sub">Загружаем…</p></div></section>
-        <section class="acc-card acc-wide"><h2>История матчей</h2>${empty('Матчей пока нет.', 'Результаты ваших игр будут собираться здесь.')}</section>
+        <section class="acc-card acc-wide" id="matchCard"><h2>Мои матчи</h2><div id="matchBody"><p class="acc-sub">Загружаем…</p></div></section>
       </div>
     </main>`;
   },
@@ -93,6 +111,16 @@ export default {
         if (alive) $('#regBody', root).innerHTML = regsHtml(r.registrations);
       } catch (e) {
         if (alive) $('#regBody', root).innerHTML = `<div class="acc-empty"><p>${esc(tournamentError(e, 'Не удалось загрузить турниры.'))}</p></div>`;
+      }
+    };
+
+    /* Матчи: тоже отдельным запросом */
+    const loadMatches = async () => {
+      try {
+        const r = await matchesApi.mine();
+        if (alive) $('#matchBody', root).innerHTML = myMatchesHtml(r.matches);
+      } catch (e) {
+        if (alive) $('#matchBody', root).innerHTML = `<div class="acc-empty"><p>${esc(tournamentError(e, 'Не удалось загрузить матчи.'))}</p></div>`;
       }
     };
 
@@ -123,7 +151,7 @@ export default {
         const el = $('#invErr', root); if (el && alive) el.textContent = teamError(err);
       }
     });
-    loadTeams(); loadRegs();
+    loadTeams(); loadRegs(); loadMatches();
 
     if (motion) gsap.from($$('.acc-hero, .acc-card', root), { y: 22, opacity: 0, duration: .6, stagger: .08, ease: 'power3.out', clearProps: 'transform,opacity' });
 

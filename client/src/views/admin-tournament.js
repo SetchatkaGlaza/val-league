@@ -4,10 +4,12 @@ import { ICON, esc } from './parts.js';
 import { flash } from './team-parts.js';
 import { statusBadge, tournamentError, rub, mapName, dateShort } from './tournament-parts.js';
 import { regBadge, regStatusText, CANCEL_REASON } from './registration-parts.js';
+import { mountAdminBracket } from './admin-bracket.js';
 
 // Карты CS2 — тот же список, что в server/src/config.js (maps).
 const MAPS = ['de_ancient', 'de_anubis', 'de_dust2', 'de_inferno', 'de_mirage', 'de_nuke', 'de_overpass', 'de_train', 'de_vertigo'];
 const EDITABLE = ['draft', 'upcoming'];
+const BRACKET_STATUSES = ['upcoming', 'live', 'finished'];   // в этих статусах у турнира есть раздел «Сетка и матчи»
 const FLOW = {
   draft: [['upcoming', 'Опубликовать', 'primary']],
   upcoming: [['live', 'Начать турнир', 'primary'], ['draft', 'Вернуть в черновик', 'ghost'], ['cancelled', 'Отменить турнир', 'danger']],
@@ -145,7 +147,7 @@ export default {
 
   mount(root, { params, navigate }) {
     const isNew = !params.id;
-    let alive = true, t = null, dirty = false, toastTimer = 0, note = flash.take(), regs = [];
+    let alive = true, t = null, dirty = false, toastTimer = 0, note = flash.take(), regs = [], bk = null;
     const body = $('#aBody', root), toast = $('#toast', root);
 
     const say = (text, ok = false) => {
@@ -168,8 +170,10 @@ export default {
     }
 
     function paint() {
-      body.innerHTML = `${note ? `<div class="banner ok" role="status">${esc(note)}</div>` : ''}${isNew ? '' : statusPanel(t)}${isNew ? '' : '<div id="regsSlot"><div class="sk sk-card"></div></div>'}${formHtml(t, isNew)}`;
+      if (bk) { bk.stop(); bk = null; }
+      body.innerHTML = `${note ? `<div class="banner ok" role="status">${esc(note)}</div>` : ''}${isNew ? '' : `<div id="statusSlot">${statusPanel(t)}</div>`}${isNew ? '' : '<div id="regsSlot"><div class="sk sk-card"></div></div>'}${isNew || !BRACKET_STATUSES.includes(t.status) ? '' : '<div id="bracketSlot"></div>'}${formHtml(t, isNew)}`;
       if (!isNew) loadRegs();
+      if ($('#bracketSlot', root)) bk = mountAdminBracket($('#bracketSlot', root), t, { say, onTournament: refreshTournament });
       note = null; dirty = false;
       $('#aTitle', root).textContent = isNew ? 'Новый турнир' : t.name;
       if (!isNew) document.title = `${t.name} — админка`;
@@ -233,6 +237,17 @@ export default {
       }
     }
 
+    /** Турнир мог измениться сам (результат финала завершает его): обновляем панель статуса, не трогая форму. */
+    async function refreshTournament() {
+      try {
+        const r = await admin.get(t.id);
+        if (!alive) return;
+        t = r.tournament;
+        const slot = $('#statusSlot', root); if (slot) slot.innerHTML = statusPanel(t);
+        if (bk) bk.setTournament(t);
+      } catch { /* панель обновится при следующем действии */ }
+    }
+
     async function changeStatus(btn, to, extra = {}) {
       if (dirty && !confirm('Есть несохранённые изменения формы — они не сохранятся при смене статуса. Продолжить?')) return;
       busy(btn, true);
@@ -258,8 +273,9 @@ export default {
           else await admin.refunded(id);
           if (!alive) return;
           await loadRegs(); say('Готово.', true);
-          // Счётчики мест в шапке страницы обновляем, не трогая форму
-          admin.get(t.id).then((r) => { if (alive) t = r.tournament; }).catch(() => {});
+          // Сервер мог сбросить сетку (состав оплаченных команд изменился): перечитываем её, счётчики мест обновляем, не трогая форму
+          if (bk) bk.reload();
+          admin.get(t.id).then((r) => { if (alive) { t = r.tournament; if (bk) bk.setTournament(t); } }).catch(() => {});
         } catch (err) { if (alive) { busy(rb, false); say(tournamentError(err)); } }
         return;
       }
@@ -330,6 +346,6 @@ export default {
         body.innerHTML = `<section class="stub tm-state"><h1>${e.code === 'not_found' ? 'Турнир не найден' : 'Не удалось загрузить'}</h1><p>${esc(e.code === 'not_found' ? 'Возможно, его уже удалили.' : tournamentError(e))}</p><div class="stub-actions"><a href="/admin" class="btn btn-primary">В админку</a></div></section>`;
       }
     })();
-    return () => { alive = false; clearTimeout(toastTimer); removeEventListener('beforeunload', beforeUnload); document.removeEventListener('click', guardLinks, true); };
+    return () => { alive = false; if (bk) bk.stop(); clearTimeout(toastTimer); removeEventListener('beforeunload', beforeUnload); document.removeEventListener('click', guardLinks, true); };
   },
 };

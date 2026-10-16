@@ -63,7 +63,9 @@ const { rows } = await query('SELECT id, nick FROM users WHERE email = $1', [ema
 
 - `tournament_registrations` — заявки команд на турниры: статус (`pending_payment / paid / waitlist / cancelled`), снимок состава, сумма, код платежа, срок оплаты, `refund_due`. Подробно: `docs/REGISTRATION.md`.
 
-Дальше схема растёт по этапам ТЗ: матчи, новости, рейтинг. Новые таблицы добавляйте в `schema.sql` с `CREATE TABLE IF NOT EXISTS`; когда понадобятся изменения существующих таблиц, перейдите на миграции (например, `node-pg-migrate`).
+- `matches` — матчи сетки Single Elimination: участники (заявки), счёт, победитель, связь со следующим матчем, расписание, лобби. Подробно: `docs/BRACKET.md`.
+
+Дальше схема растёт по этапам ТЗ: новости, рейтинг, outbox уведомлений (см. `docs/telegram/ARCHITECTURE.md`). Новые таблицы добавляйте в `schema.sql` с `CREATE TABLE IF NOT EXISTS`; когда понадобятся изменения существующих таблиц, перейдите на миграции (например, `node-pg-migrate`).
 
 ## Бэкапы
 В облаке включите автоматические бэкапы. Локально: `docker compose exec db pg_dump -U val val > backup.sql`.

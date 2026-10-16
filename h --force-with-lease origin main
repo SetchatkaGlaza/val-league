@@ -1,0 +1,24 @@
+[33m09a3a8b[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Telegram: этап 1 — аудит, архитектура, импорт стартера бота
+ bot/.env.example                               |  8 [32m++++[m
+ bot/.gitignore                                 |  2 [32m+[m
+ bot/Dockerfile                                 |  9 [32m++++[m
+ bot/assets/val-mark.svg                        |  9 [32m++++[m
+ bot/assets/val-wordmark.svg                    |  9 [32m++++[m
+ bot/package.json                               | 22 [32m++++++++++[m
+ bot/src/config.js                              | 20 [32m+++++++++[m
+ bot/src/handlers/help.js                       | 13 [32m++++++[m
+ bot/src/handlers/start.js                      | 33 [32m+++++++++++++++[m
+ bot/src/index.js                               | 52 [32m+++++++++++++++++++++++[m
+ bot/src/services/notifications.js              | 28 [32m+++++++++++++[m
+ bot/src/services/val-api.js                    | 17 [32m++++++++[m
+ docs/telegram/ARCHITECTURE.md                  | 31 [32m++++++++++++++[m
+ docs/telegram/AUDIT.md                         | 58 [32m++++++++++++++++++++++++++[m
+ docs/telegram/PROGRESS.md                      | 24 [32m+++++++++++[m
+ docs/telegram/starter/IMPLEMENTATION_STATUS.md |  9 [32m++++[m
+ docs/telegram/starter/INTEGRATION_CONTRACTS.md | 36 [32m++++++++++++++++[m
+ docs/telegram/starter/PROJECT_CONTEXT.md       | 17 [32m++++++++[m
+ docs/telegram/starter/README_RU.md             | 25 [32m+++++++++++[m
+ docs/telegram/starter/SECURITY.md              | 12 [32m++++++[m
+ docs/telegram/starter/TECHNICAL_SPEC.md        | 29 [32m+++++++++++++[m
+ docs/telegram/starter/TEST_PLAN.md             | 12 [32m++++++[m
+ 22 files changed, 475 insertions(+)

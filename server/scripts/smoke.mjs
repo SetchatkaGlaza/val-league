@@ -16,6 +16,7 @@ function client() {
     });
     const sc = res.headers.getSetCookie?.() || [];
     if (sc.length) { const c = sc.map((s) => s.split(';')[0]).filter((s) => !/=$/.test(s)); cookie = c.length ? c.join('; ') : ''; }
+    if (res.status === 429) throw new Error('Сработал лимит запросов. Для автопроверки добавьте в server/.env строки WRITE_LIMIT=1000 и API_LIMIT=1000, перезапустите сервер и повторите (после проверки строки можно убрать).');
     return { status: res.status, data: await res.json().catch(() => ({})) };
   };
 }
@@ -82,7 +83,8 @@ try {
   check('главная получает ближайший', !!(await pl.api('GET', '/tournaments/next')).data.tournament);
   check('нельзя сразу завершить', (await adm.api('POST', `/admin/tournaments/${tid}/status`, { status: 'finished' })).status === 409);
   check('идущий нельзя удалить', (await adm.api('DELETE', `/admin/tournaments/${tid}`)).status === 409);
-  await adm.api('POST', `/admin/tournaments/${tid}/status`, { status: 'live' });
+  check('начать турнир без сетки нельзя', (await adm.api('POST', `/admin/tournaments/${tid}/status`, { status: 'live' })).data.code === 'bracket_required');
+  await pool.query(`UPDATE tournaments SET status = 'live' WHERE id = $1`, [tid]);   // дальше проверяем правила редактирования идущего турнира; сетка — в разделе «Сетка и матчи»
   check('в идущем нельзя менять взнос', (await adm.api('PATCH', `/admin/tournaments/${tid}`, { fee: 1 })).status === 409);
   check('описание менять можно', (await adm.api('PATCH', `/admin/tournaments/${tid}`, { description: 'ok' })).status === 200);
   const fin = await adm.api('POST', `/admin/tournaments/${tid}/status`, { status: 'finished', winnerName: 'Smoke Team', winnerRoster: ['a', 'b'] });
@@ -146,13 +148,62 @@ try {
   const mineAdm = await adm.api('GET', '/registrations/mine');
   check('«Мои заявки» показывают заявку капитана', mineAdm.data.registrations?.some((r) => r.id === r2id && r.isCaptain));
 
-  check('турнир начинается', (await adm.api('POST', `/admin/tournaments/${rid}/status`, { status: 'live' })).status === 200);
   const after = (await adm.api('GET', `/admin/tournaments/${rid}/registrations`)).data.registrations;
-  check('при старте неоплаченные заявки сняты', after.find((r) => r.id === r2id)?.status === 'cancelled' && after.find((r) => r.id === r2id)?.cancelReason === 'tournament_started', after);
-  check('отменяем турнир', (await adm.api('POST', `/admin/tournaments/${rid}/status`, { status: 'cancelled' })).status === 200);
+  check('отмена турнира снимает неоплаченные заявки', (await adm.api('POST', `/admin/tournaments/${rid}/status`, { status: 'cancelled' })).status === 200
+    && (await adm.api('GET', `/admin/tournaments/${rid}/registrations`)).data.registrations.find((r) => r.id === r2id)?.cancelReason === 'tournament_cancelled', after);
   check('турнир с невозвращённым взносом не удаляется', (await adm.api('DELETE', `/admin/tournaments/${rid}`)).data.code === 'has_payments');
   check('взнос отмечен возвращённым', (await adm.api('POST', `/admin/registrations/${r1id}/refunded`)).status === 200);
   check('теперь турнир удаляется', (await adm.api('DELETE', `/admin/tournaments/${rid}`)).status === 200);
+
+  console.log('Сетка и матчи');
+  const anon = client();
+  const bt = await adm.api('POST', '/admin/tournaments', { name: `Smoke Bracket ${run}`, startsAt: new Date(Date.now() + 7 * 864e5).toISOString(), maxTeams: 2, fee: 0, teamSize: 2, matchFormat: 'bo3' });
+  const bid = bt.data.tournament.id, bslug = bt.data.tournament.slug; created.tournaments.push(bid);
+  await adm.api('POST', `/admin/tournaments/${bid}/status`, { status: 'upcoming' });
+  const breg = (api, team, roster) => api('POST', `/tournaments/${bslug}/registrations`, { teamSlug: team, roster, acceptRules: true });
+  const b1 = await breg(pl.api, slug, [pl.id, cap.id]);
+  check('бесплатная заявка сразу подтверждена', b1.status === 201 && b1.data.registration.status === 'paid', b1.data);
+  check('сетка без команд пустая и предварительная', await anon('GET', `/tournaments/${bslug}/bracket`).then((r) => r.status === 200 && r.data.rounds.length === 0 && r.data.preliminary === true));
+  check('одну команду в сетку не поставить', (await adm.api('POST', `/admin/tournaments/${bid}/bracket`, {})).data.code === 'not_enough_teams');
+  const b2 = await breg(adm.api, slug2, [adm.id, x.id]);
+  check('вторая команда подтверждена', b2.status === 201 && b2.data.registration.status === 'paid', b2.data);
+  check('игрок не формирует сетку', (await pl.api('POST', `/admin/tournaments/${bid}/bracket`, {})).status === 403);
+  check('ручной порядок проверяется', (await adm.api('POST', `/admin/tournaments/${bid}/bracket`, { seeding: 'manual', order: [b1.data.registration.id] })).status === 400);
+  const g = await adm.api('POST', `/admin/tournaments/${bid}/bracket`, { seeding: 'manual', order: [b2.data.registration.id, b1.data.registration.id] });
+  const fm = g.data.rounds?.[0]?.matches?.[0];
+  check('сетка из двух команд: один финал, сид №1 — вторая команда', g.status === 201 && g.data.totalRounds === 1 && fm?.status === 'ready' && fm.a?.seed === 1 && fm.a?.name === `Smk2 ${run}` && g.data.rounds[0].name === 'Финал', g.data);
+  const mid = fm.id;
+
+  // Любое изменение состава оплаченных команд делает готовую сетку недействительной
+  check('снятие оплаченной команды сбрасывает сетку', (await adm.api('POST', `/admin/registrations/${b2.data.registration.id}/cancel`, {})).status === 200
+    && (await adm.api('GET', `/admin/tournaments/${bid}/bracket`)).data.rounds.length === 0);
+  const b2b = await breg(adm.api, slug2, [adm.id, x.id]);
+  check('команда регистрируется заново', b2b.status === 201 && b2b.data.registration.status === 'paid', b2b.data);
+  const g2 = await adm.api('POST', `/admin/tournaments/${bid}/bracket`, { seeding: 'random' });
+  check('сетка формируется заново (жеребьёвка)', g2.status === 201 && g2.data.rounds[0].matches.length === 1, g2.data);
+  const mid2 = g2.data.rounds[0].matches[0].id;
+  check('результат до старта турнира не вводится', (await adm.api('PUT', `/admin/matches/${mid2}/result`, { scoreA: 2, scoreB: 0 })).data.code === 'bad_state');
+
+  check('игрок не вводит результат', (await pl.api('PUT', `/admin/matches/${mid2}/result`, { scoreA: 2, scoreB: 0 })).status === 403);
+  check('расписание и лобби сохраняются', (await adm.api('PATCH', `/admin/matches/${mid2}`, { startsAt: new Date(Date.now() + 8 * 864e5).toISOString(), lobby: 'connect 10.0.0.1:27015' })).status === 200);
+  check('турнир начинается при готовой сетке', (await adm.api('POST', `/admin/tournaments/${bid}/status`, { status: 'live' })).status === 200);
+  check('в идущем турнире оплаченную команду не снять', (await adm.api('POST', `/admin/registrations/${b2b.data.registration.id}/cancel`, {})).data.code === 'tournament_live');
+
+  const mp = await pl.api('GET', `/matches/${mid2}`);
+  check('участник видит лобби', mp.status === 200 && mp.data.match.lobby === 'connect 10.0.0.1:27015' && mp.data.viewer.side !== null && mp.data.match.rosterA.length === 2, mp.data);
+  const ma = await anon('GET', `/matches/${mid2}`);
+  check('посторонний лобби не видит', ma.status === 200 && ma.data.match.lobby === undefined && ma.data.match.hasLobby === true, ma.data);
+  check('«Мои матчи»', (await pl.api('GET', '/matches/mine')).data.matches?.some((m) => m.id === mid2 && m.status === 'ready'));
+  check('матч можно отметить идущим', (await adm.api('PATCH', `/admin/matches/${mid2}`, { status: 'live' })).data.match?.status === 'live');
+
+  check('ничья в BO3 недопустима', (await adm.api('PUT', `/admin/matches/${mid2}/result`, { scoreA: 2, scoreB: 2 })).data.code === 'tie');
+  check('счёт BO3 проверяется', (await adm.api('PUT', `/admin/matches/${mid2}/result`, { scoreA: 3, scoreB: 0 })).data.code === 'bad_score');
+  const rf = await adm.api('PUT', `/admin/matches/${mid2}/result`, { scoreA: 2, scoreB: 1 });
+  const winName = g2.data.rounds[0].matches[0].a.name;
+  check('финал завершает турнир и записывает победителя', rf.status === 200 && rf.data.match.winner === 'a' && rf.data.tournament.status === 'finished' && rf.data.tournament.winner === winName, rf.data);
+  check('результат финала можно исправить, победитель меняется', (await adm.api('PUT', `/admin/matches/${mid2}/result`, { scoreA: 0, scoreB: 2 })).data.tournament?.winner === g2.data.rounds[0].matches[0].b.name);
+  check('победитель сетки на главной', (await anon('GET', '/winners?limit=20')).data.winners?.some((w) => w.slug === bslug));
+  check('после финала лобби скрыто', (await pl.api('GET', `/matches/${mid2}`)).data.match.lobby === undefined);
 
   console.log('Удаление аккаунта');
   check('теперь капитан (бывший) удаляется', (await cap.api('POST', '/account/delete', { nick: cap.nick })).status === 200);
