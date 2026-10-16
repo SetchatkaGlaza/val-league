@@ -1,0 +1,22 @@
+{
+  "name": "val-telegram-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "check": "node --check src/index.js && node --check src/config.js && node --check src/handlers/start.js && node --check src/handlers/help.js && node --check src/services/val-api.js && node --check src/services/notifications.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "telegraf": "^4.16.3",
+    "zod": "^3.24.2"
+  }
+}

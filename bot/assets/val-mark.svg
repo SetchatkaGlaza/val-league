@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t d">
+<title id="t">VAL emblem concept</title><desc id="d">Minimal VAL shield with white letters and red-orange crosshair accent.</desc>
+<rect width="512" height="512" rx="92" fill="#0A0A0A"/>
+<path d="M256 54 407 111v120c0 104-62 176-151 227C167 407 105 335 105 231V111Z" fill="none" stroke="#FFF" stroke-width="14" stroke-linejoin="round"/>
+<circle cx="256" cy="200" r="68" fill="none" stroke="#FF3B30" stroke-width="10"/>
+<path d="M256 111v39M256 250v39M167 200h39M306 200h39" stroke="#FF3B30" stroke-width="10" stroke-linecap="round"/>
+<path d="M154 294 194 382h31l31-68 31 68h31l40-88h-34l-22 54-31-68h-30l-31 68-22-54Z" fill="#FFF"/>
+<path d="M248 336h47" stroke="#FF3B30" stroke-width="12" stroke-linecap="square"/>
+</svg>

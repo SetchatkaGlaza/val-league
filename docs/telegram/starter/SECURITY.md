@@ -1,0 +1,12 @@
+# Security checklist
+- Не коммитить `.env`, Telegram token или production credentials.
+- Link token генерирует только сайт после авторизации; короткий TTL, хранить hash, одноразово использовать атомарно.
+- Не доверять username, имени или присланному user ID.
+- Internal endpoint: secret/service identity, HTTPS, rate limit, JSON size limit, schema validation.
+- В production применить HMAC + timestamp/replay protection либо отдельную service identity.
+- Разрешать кнопки только на HTTPS-домене VAL.
+- Не логировать секреты, link tokens и полные payload с персональными данными.
+- Уведомления должны учитывать согласие и настройки пользователя.
+- Административные права проверять на сервере.
+- In-memory deduplication не годится для production: нужна постоянная БД/очередь.
+- Добавить retries/backoff, обработку Telegram 429 и недоставленных сообщений.

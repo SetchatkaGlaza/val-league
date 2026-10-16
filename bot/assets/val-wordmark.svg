@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 220" role="img" aria-labelledby="title">
+<title id="title">VAL VOLOGDA AMATEUR LEAGUE</title><rect width="900" height="220" rx="24" fill="#0A0A0A"/>
+<g transform="translate(30 24)"><path d="M86 6 146 29v47c0 41-25 69-60 89C51 145 26 117 26 76V29Z" fill="none" stroke="#FFF" stroke-width="6"/>
+<circle cx="86" cy="64" r="27" fill="none" stroke="#FF3B30" stroke-width="5"/><path d="M86 27v14m0 46v14M49 64h14m46 0h14" stroke="#FF3B30" stroke-width="5" stroke-linecap="round"/>
+<text x="86" y="130" fill="#FFF" font-family="Arial,sans-serif" font-size="31" font-weight="900" text-anchor="middle">VAL</text></g>
+<text x="225" y="106" fill="#FFF" font-family="Arial,sans-serif" font-size="78" font-weight="900" letter-spacing="3">VAL</text>
+<rect x="228" y="124" width="100" height="7" fill="#FF3B30"/>
+<text x="228" y="164" fill="#D4D4D4" font-family="Arial,sans-serif" font-size="24" font-weight="700" letter-spacing="3">VOLOGDA AMATEUR LEAGUE</text>
+<text x="228" y="193" fill="#8F8F8F" font-family="Arial,sans-serif" font-size="16" letter-spacing="2">COUNTER-STRIKE 2 TOURNAMENTS</text></svg>
