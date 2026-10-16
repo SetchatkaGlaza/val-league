@@ -5,6 +5,8 @@ import { squareLogo, LOGO_ERRORS } from '../js/image.js';
 import { teamNameError, teamDescError } from '../js/validators.js';
 import { ICON, esc } from './parts.js';
 import { teamLogo, teamError, flash, longDate, plural } from './team-parts.js';
+import { REG_STATUS } from './registration-parts.js';
+import { dateShort } from './tournament-parts.js';
 
 const skeleton = '<div class="tm-skel" aria-busy="true"><div class="sk sk-hero"></div><div class="sk sk-card"></div><div class="sk sk-card"></div></div>';
 
@@ -112,8 +114,9 @@ function settingsPanel(d) {
 
 function tournaments(d) {
   const list = d.tournaments.length
-    ? `<ul class="mem-list">${d.tournaments.map((t) => `<li class="mem"><div class="mem-t"><b>${esc(t.name)}</b><span>${esc(t.result || '')}</span></div></li>`).join('')}</ul>`
-    : '<div class="acc-empty"><p>Команда пока не участвовала в турнирах.</p><span>Здесь появится история: турниры и занятые места.</span></div>';
+    ? `<ul class="mem-list">${d.tournaments.map((t) => `<li class="mem"><a class="mem-link" href="/tournaments/${esc(t.slug)}"><span class="mem-t"><b>${esc(t.name)}</b><span>${dateShort(t.startsAt)}</span></span>
+        <span class="mem-r"><span class="st st-${REG_STATUS[t.regStatus]?.[1] || 'soon'}">${REG_STATUS[t.regStatus]?.[0] || ''}</span></span></a></li>`).join('')}</ul>`
+    : '<div class="acc-empty"><p>Команда пока не участвовала в турнирах.</p><span>Здесь появятся заявки и сыгранные турниры.</span></div>';
   return `<section class="acc-card"><h2>Турниры</h2>${list}</section>`;
 }
 

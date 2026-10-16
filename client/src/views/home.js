@@ -2,12 +2,9 @@ import shield from '../assets/logo-shield.png';
 import { $, $$, gsap, motion } from '../js/ui.js';
 import { getUser } from '../js/session.js';
 import { SITE } from '../config.js';
-import { nextTournament as T, winners } from '../data/demo.js';
+import { tournaments } from '../js/api.js';
 import { esc } from './parts.js';
-
-const rub = (n) => new Intl.NumberFormat('ru-RU').format(n) + ' ₽';
-const dateFmt = (d) => new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(d);
-const pad = (n) => String(n).padStart(2, '0');
+import { rub, dateLong, dateShort, formatLine, feeLine, slotsLine, statusBadge, startCountdown, countdownHtml } from './tournament-parts.js';
 
 const I = {
   online: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
@@ -15,7 +12,39 @@ const I = {
   prize: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H5a2 2 0 0 0 2 4M16 6h3a2 2 0 0 1-2 4M12 13v4M9 20h6"/></svg>',
 };
 
-const cd = (k, label) => `<div class="cd-box"><b data-cd="${k}">00</b><span>${label}</span></div>`;
+const CTA = (user, t) => (t && t.status === 'upcoming' && t.registrationOpen ? `/tournaments/${t.slug}` : user ? '/tournaments' : '/register');
+
+/** Блок «Ближайший турнир»: идущий или ближайший по дате. */
+function nextHtml(t, user) {
+  if (!t) return `
+    <div class="next-main"><p class="label">Ближайший турнир</p><h2 id="nextTitle">Скоро анонсируем</h2>
+      <p class="next-empty">Новый турнир уже готовится. Создайте аккаунт и соберите команду, чтобы успеть на регистрацию.</p></div>
+    <div class="next-prize"><a href="/tournaments" class="btn btn-ghost">Все турниры</a></div>`;
+  const s = slotsLine(t), live = t.status === 'live';
+  return `
+    <div class="next-main">
+      <p class="label">${live ? 'Турнир идёт' : 'Ближайший турнир'} ${statusBadge(t)}</p>
+      <h2 id="nextTitle"><a class="plain" href="/tournaments/${esc(t.slug)}">${esc(t.name)}</a></h2>
+      <ul class="chips">
+        <li>${dateLong(t.startsAt)} (по вашему времени)</li><li>${formatLine(t)}</li><li>${feeLine(t)}</li>
+      </ul>
+      <div class="slots"><div class="slots-bar"><i style="width:${s.pct}%"></i></div><span>${s.text} · ${s.left}</span></div>
+    </div>
+    ${live ? '' : `<div class="next-timer"><p class="label">До старта</p>${countdownHtml(t.startsAt)}</div>`}
+    <div class="next-prize">
+      <p class="label">Призовой фонд</p>
+      <p class="prize">${t.prizeTotal ? rub(t.prizeTotal) : '—'}</p>
+      <a href="${CTA(user, t)}" class="btn btn-primary">${live ? 'Смотреть' : t.registrationOpen ? 'Участвовать' : 'Подробнее'}</a>
+    </div>`;
+}
+
+const winnersHtml = (list) => list.map((w) => `
+  <article class="win">
+    <p class="win-t">${esc(w.tournament)} · ${dateShort(w.date)}</p>
+    <h3>${esc(w.team)}</h3>
+    ${w.roster.length ? `<p class="win-roster">${w.roster.map(esc).join(' · ')}</p>` : ''}
+    ${w.prize ? `<p class="win-prize">Приз: ${rub(w.prize)}</p>` : ''}
+  </article>`).join('');
 
 export default {
   layout: 'doc',
@@ -24,7 +53,6 @@ export default {
 
   render: () => {
     const user = getUser();
-    const pct = Math.round((T.slots.taken / T.slots.total) * 100);
     return `
     <main class="home">
       <section class="hero">
@@ -40,26 +68,8 @@ export default {
         <img class="hero-shield" src="${shield}" alt="VOLOGDA AMATEUR LEAGUE CS2" width="360" />
       </section>
 
-      <section class="next" aria-labelledby="nextTitle" data-reveal>
-        <div class="next-main">
-          <p class="label">Ближайший турнир</p>
-          <h2 id="nextTitle">${esc(T.name)}</h2>
-          <ul class="chips">
-            <li>${dateFmt(T.startsAt)} (по вашему времени)</li>
-            <li>${esc(T.format)}</li>
-            <li>Взнос: ${T.fee ? rub(T.fee) + ' с команды' : 'бесплатно'}</li>
-          </ul>
-          <div class="slots"><div class="slots-bar"><i style="width:${pct}%"></i></div><span>Занято мест: <b>${T.slots.taken}</b> из ${T.slots.total}</span></div>
-        </div>
-        <div class="next-timer">
-          <p class="label">До старта</p>
-          <time class="cd" id="cd" datetime="${T.startsAt.toISOString()}">${cd('d', 'дн')}${cd('h', 'ч')}${cd('m', 'мин')}${cd('s', 'сек')}</time>
-        </div>
-        <div class="next-prize">
-          <p class="label">Призовой фонд</p>
-          <p class="prize">${rub(T.prize)}</p>
-          <a href="${user ? '/account' : '/register'}" class="btn btn-primary">Участвовать</a>
-        </div>
+      <section class="next" id="nextBox" aria-labelledby="nextTitle" aria-live="polite" data-reveal>
+        <div class="next-main"><p class="label">Ближайший турнир</p><h2 id="nextTitle">Загружаем…</h2><div class="sk sk-line"></div></div>
       </section>
 
       <section class="about" aria-labelledby="aboutTitle" data-reveal>
@@ -72,17 +82,10 @@ export default {
         </div>
       </section>
 
-      <section class="winners" aria-labelledby="winTitle" data-reveal>
+      <section class="winners" id="winBox" aria-labelledby="winTitle" data-reveal hidden>
         <h2 id="winTitle">Последние победители</h2>
-        <div class="win-grid">
-          ${winners.map((w) => `
-          <article class="win">
-            <p class="win-t">${esc(w.tournament)} · ${esc(w.date)}</p>
-            <h3>${esc(w.place)}</h3>
-            <p class="win-roster">${w.roster.map(esc).join(' · ')}</p>
-            <p class="win-prize">Приз: ${rub(w.prize)}</p>
-          </article>`).join('')}
-        </div>
+        <div class="win-grid" id="winGrid"></div>
+        <a class="link" href="/tournaments?tab=past">Все прошедшие турниры →</a>
       </section>
 
       <section class="partners" aria-labelledby="partTitle" data-reveal>
@@ -103,21 +106,36 @@ export default {
   },
 
   mount(root) {
-    // Таймер до старта
-    const els = { d: $('[data-cd="d"]', root), h: $('[data-cd="h"]', root), m: $('[data-cd="m"]', root), s: $('[data-cd="s"]', root) };
-    const tick = () => {
-      let left = Math.max(0, Math.floor((T.startsAt - Date.now()) / 1000));
-      const d = Math.floor(left / 86400); left -= d * 86400;
-      const h = Math.floor(left / 3600); left -= h * 3600;
-      const m = Math.floor(left / 60);
-      els.d.textContent = pad(d); els.h.textContent = pad(h); els.m.textContent = pad(m); els.s.textContent = pad(left % 60);
+    let alive = true, stopCd = () => {};
+    const user = getUser();
+    const box = $('#nextBox', root), winBox = $('#winBox', root);
+
+    const showNext = (t) => {
+      stopCd();
+      box.innerHTML = nextHtml(t, user);
+      if (t && t.status === 'upcoming') stopCd = startCountdown(box, t.startsAt, () => setTimeout(() => alive && loadNext(), 4000));
     };
-    tick();
-    const timer = setInterval(tick, 1000);
+    async function loadNext() {
+      try { const r = await tournaments.next(); if (alive) showNext(r.tournament); }
+      catch (e) {
+        if (!alive) return;
+        box.innerHTML = `<div class="next-main"><p class="label">Ближайший турнир</p><h2 id="nextTitle">Не удалось загрузить</h2><p class="next-empty">${e.code === 'mock' ? 'В демо-режиме данные турниров недоступны.' : 'Проверьте соединение и попробуйте ещё раз.'}</p></div>
+          <div class="next-prize"><button type="button" class="btn btn-ghost" data-retry>Повторить</button></div>`;
+      }
+    }
+    async function loadWinners() {
+      try {
+        const r = await tournaments.winners(3);
+        if (!alive || !r.winners.length) return;
+        $('#winGrid', root).innerHTML = winnersHtml(r.winners); winBox.hidden = false;
+        if (io) { gsap.set(winBox, { opacity: 0, y: 28 }); io.observe(winBox); }
+      } catch { /* блок победителей просто не показываем */ }
+    }
+    root.addEventListener('click', (e) => { if (e.target.closest('[data-retry]')) { box.innerHTML = '<div class="next-main"><div class="sk sk-line"></div></div>'; loadNext(); } });
 
     // Появление блоков при прокрутке
     let io;
-    const blocks = $$('[data-reveal]', root);
+    const blocks = $$('[data-reveal]:not([hidden])', root);
     if (motion) {
       gsap.from($$('.hero-copy > *, .hero-shield', root), { y: 26, opacity: 0, duration: .7, stagger: .08, ease: 'power3.out', clearProps: 'transform,opacity' });
       gsap.set(blocks, { opacity: 0, y: 28 });
@@ -126,6 +144,7 @@ export default {
       }), { rootMargin: '0px 0px -8% 0px' });
       blocks.forEach((b) => io.observe(b));
     }
-    return () => { clearInterval(timer); io && io.disconnect(); };
+    loadNext(); loadWinners();
+    return () => { alive = false; stopCd(); io && io.disconnect(); };
   },
 };

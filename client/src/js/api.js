@@ -3,8 +3,8 @@ const MOCK = import.meta.env.VITE_MOCK === 'true';
 export const IS_MOCK = MOCK;
 
 export class ApiError extends Error {
-  constructor(status, code, message, field) {
-    super(message); this.status = status; this.code = code; this.field = field;
+  constructor(status, code, message, field, details) {
+    super(message); this.status = status; this.code = code; this.field = field; this.details = details;
   }
 }
 
@@ -19,7 +19,7 @@ async function request(path, { method = 'GET', body, timeout = 12000 } = {}) {
       body: body ? (body instanceof Blob ? body : JSON.stringify(body)) : undefined,
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new ApiError(res.status, data.code || 'error', data.message || '', data.field);
+    if (!res.ok) throw new ApiError(res.status, data.code || 'error', data.message || '', data.field, data.details);
     return data;
   } catch (e) {
     if (e instanceof ApiError) throw e;
@@ -143,10 +143,46 @@ export const invites = {
   decline: live((id) => send('POST', '/invites/decline', { id })),
 };
 
+// Турниры и админка тоже работают только с сервером.
+const qs = (o) => new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== '')).toString();
+
+export const tournaments = {
+  list: live((tab) => request(`/tournaments?${qs({ tab })}`)),
+  next: live(() => request('/tournaments/next')),
+  get: live((slug) => request(`/tournaments/${enc(slug)}`)),
+  winners: live((limit = 3) => request(`/winners?limit=${limit}`)),
+};
+
+export const registrations = {
+  eligibility: live((slug) => request(`/tournaments/${enc(slug)}/registration`)),
+  create: live((slug, d) => send('POST', `/tournaments/${enc(slug)}/registrations`, d)),
+  mine: live(() => request('/registrations/mine')),
+  cancel: live((id) => send('POST', `/registrations/${enc(id)}/cancel`)),
+  roster: live((id, roster) => send('PUT', `/registrations/${enc(id)}/roster`, { roster })),
+};
+
+export const teamsDirectory = live((q, offset = 0) => request(`/teams?${qs({ q, offset: offset || undefined })}`));
+
+export const admin = {
+  dashboard: live(() => request('/admin/dashboard')),
+  list: live(() => request('/admin/tournaments')),
+  get: live((id) => request(`/admin/tournaments/${enc(id)}`)),
+  create: live((d) => send('POST', '/admin/tournaments', d)),
+  update: live((id, d) => send('PATCH', `/admin/tournaments/${enc(id)}`, d)),
+  setStatus: live((id, d) => send('POST', `/admin/tournaments/${enc(id)}/status`, d)),
+  remove: live((id) => send('DELETE', `/admin/tournaments/${enc(id)}`)),
+  registrations: live((id) => request(`/admin/tournaments/${enc(id)}/registrations`)),
+  confirm: live((id, note) => send('POST', `/admin/registrations/${enc(id)}/confirm`, note ? { note } : {})),
+  cancelReg: live((id, note) => send('POST', `/admin/registrations/${enc(id)}/cancel`, note ? { note } : {})),
+  refunded: live((id) => send('POST', `/admin/registrations/${enc(id)}/refunded`, {})),
+};
+
 export const logoUrl = (file) => (file ? `${BASE}/files/logos/${file}` : null);
 
 export const COMMON_ERRORS = {
-  mock: 'Команды работают только с подключённым сервером (сейчас включён демо-режим).',
+  soon: 'Эта возможность появится на этапе уведомлений и входа через Steam.',
+  forbidden: 'Недостаточно прав для этого действия.',
+  mock: 'Этот раздел работает только с подключённым сервером (сейчас включён демо-режим).',
   rate_limited: 'Слишком много попыток. Подождите несколько минут и попробуйте снова.',
   network: 'Нет соединения с сервером. Проверьте интернет и повторите.',
   timeout: 'Сервер долго не отвечает. Попробуйте ещё раз.',

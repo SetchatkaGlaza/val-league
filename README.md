@@ -1,4 +1,5 @@
 # VOLOGDA AMATEUR LEAGUE (VAL)
+Платформа онлайн-турниров по CS2 для любителей Вологды: аккаунты, команды, турниры, админка.
 
 ## Запуск
 ```bash
@@ -11,6 +12,8 @@ npm run dev        # клиент :5173, сервер :4000
 `player@val.gg` / `Password1` — успех; `unverified@val.gg` — почта не подтверждена; `limit@val.gg` — лимит попыток; любые другие — неверный пароль.
 
 База данных (PostgreSQL): см. `docs/DATABASE.md` — `npm run db:up`, `npm run db:migrate`.
+Администратор: `npm run admin:make -- почта_или_ник`. Автопроверка API: `npm run smoke`.
+**Полная инструкция по запуску и обновлению — `docs/RUN.md`, план дальнейших работ — `docs/ROADMAP.md`, что изменилось — `docs/CHANGES.md`.**
 
 Демо-ссылки из писем: `/verify-email?token=demo` (успех), `/verify-email?token=expired` (ссылка устарела),
 `/reset-password?token=demo` (успех), `/reset-password?token=expired` (ссылка устарела).
@@ -23,7 +26,7 @@ npm run dev        # клиент :5173, сервер :4000
   - `src/js/router.js` — переходы (History API), `app.js` — смена страниц с анимацией, `layouts.js` — каркасы «вход» и «документы», `drawer.js` — шторка с регламентом;
   - `src/styles` — стили.
 - `server/` — Express API (`/api`). Маршруты — `routes/`, логика — `controllers/`, `services/`.
-- `docs/PAGES.md` — список страниц и статус.
+- `docs/PAGES.md` — список страниц и статус; `docs/TOURNAMENTS.md` — турниры и админка; `docs/REGISTRATION.md` — регистрация на турнир и оплата; `docs/TEAMS.md`, `docs/AUTH.md`, `docs/DATABASE.md`.
 
 Новая страница: файл в `client/src/views`, строка в `client/src/routes.js` (каркас `auth` — карточка слева-справа, `doc` — шапка и подвал).
 

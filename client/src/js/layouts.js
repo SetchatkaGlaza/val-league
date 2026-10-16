@@ -27,18 +27,23 @@ const AUTH = `
   </main>
 </div>`;
 
+const BURGER = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path class="b1" d="M4 7h16"/><path class="b2" d="M4 12h16"/><path class="b3" d="M4 17h16"/></svg>';
+
 const DOC = `
 <div class="layout layout-doc">
   <header class="doc-top">
     <a href="/" class="doc-logo" aria-label="На главную"><img src="${logoHeader}" alt="VAL" width="120" /></a>
-    <nav class="doc-nav" aria-label="Разделы">
+    <button type="button" class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="docNav" aria-label="Открыть меню">${BURGER}</button>
+    <nav class="doc-nav" id="docNav" aria-label="Разделы">
+      <a href="/tournaments" data-nav="/tournaments">Турниры</a>
+      <a href="/teams" data-nav="/teams">Команды</a>
       <a href="/rules" data-nav="/rules">Регламент</a>
-      <a href="/privacy" data-nav="/privacy">Конфиденциальность</a>
+      <a href="/admin" data-nav="/admin" class="doc-admin" hidden>Админка</a>
       <a href="/login" class="doc-login">Войти</a>
     </nav>
   </header>
   <div id="slot" class="doc-slot"></div>
-  <footer class="doc-foot">© <span id="year"></span> VOLOGDA AMATEUR LEAGUE · <a href="/rules">Регламент</a> · <a href="/privacy">Конфиденциальность</a></footer>
+  <footer class="doc-foot">© <span id="year"></span> VOLOGDA AMATEUR LEAGUE · <a href="/tournaments">Турниры</a> · <a href="/teams">Команды</a> · <a href="/rules">Регламент</a> · <a href="/privacy">Конфиденциальность</a></footer>
 </div>`;
 
 function make(html) {
@@ -67,6 +72,7 @@ export const layouts = {
     create() {
       const el = make(DOC);
       $('#year', el).textContent = new Date().getFullYear();
+      $('#navToggle', el).addEventListener('click', () => setMenu(el, !$('#docNav', el).classList.contains('open')));
       return { el, slot: $('#slot', el) };
     },
     enter(el) {
@@ -76,13 +82,28 @@ export const layouts = {
   },
 };
 
-/** Подсветка текущего раздела в шапке документов. */
+/** Мобильное меню: открывается кнопкой, закрывается кликом по пункту, вне меню и клавишей Esc. */
+function setMenu(el, open) {
+  const nav = $('#docNav', el), btn = $('#navToggle', el);
+  if (!nav || !btn) return;
+  nav.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
+  btn.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+}
+const closeMenu = () => { const el = document.querySelector('.layout-doc'); if (el) setMenu(el, false); };
+document.addEventListener('click', (e) => { if (!e.target.closest('.doc-top')) closeMenu(); else if (e.target.closest('.doc-nav a')) closeMenu(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const t = document.getElementById('navToggle'); if (t && t.getAttribute('aria-expanded') === 'true') { closeMenu(); t.focus(); } } });
+
+/** Подсветка текущего раздела в шапке; «Админка» видна только администраторам. */
 export function updateNav(path) {
   $$('.doc-nav a[data-nav]').forEach((a) => {
-    if (a.dataset.nav === path) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    const n = a.dataset.nav;
+    if (path === n || path.startsWith(`${n}/`)) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
-  const me = $('.doc-login'), user = getUser();
+  const me = $('.doc-login'), user = getUser(), adm = $('.doc-admin');
   if (me) { me.textContent = user ? user.nick : 'Войти'; me.setAttribute('href', user ? '/account' : '/login'); }
+  if (adm) adm.hidden = user?.role !== 'admin';
+  closeMenu();
 }
 
 export const fadeOut = (el, d = .22) => (motion ? tween(el, { opacity: 0, duration: d, ease: 'power2.in' }) : Promise.resolve());

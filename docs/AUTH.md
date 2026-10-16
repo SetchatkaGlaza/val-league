@@ -30,6 +30,17 @@
 | POST | `/reset-password` | `token, password` | `{ok}`; `400 token_invalid` |
 | GET | `/steam` | — | пока перенаправляет на сайт с сообщением «скоро» |
 
+## Маршруты аккаунта (`/api/account`, нужен вход)
+| Метод | Путь | Тело | Ответ |
+| --- | --- | --- | --- |
+| POST | `/profile` | `nick` | `{user}`; `409 nick_taken` |
+| POST | `/password` | `current, password` | `{ok}`; `401 invalid_credentials` (лимит 10 попыток / 15 мин); остальные сессии завершаются |
+| POST | `/notifications` | `registered, tomorrow, match30` = `{ email, tg }` | сохранённые настройки |
+| POST | `/delete` | `nick` | `{ok}`; `409 captain_must_transfer` (+`details` — названия команд) / `last_admin` |
+| POST | `/telegram/code, /check, /unlink` | — | `501 soon` до этапа 9 |
+
+Смена или сброс пароля записывает `users.password_changed_at`: сессии (JWT), выданные раньше, перестают действовать.
+
 ## Проверка вручную (curl)
 ```bash
 curl -i -X POST localhost:4000/api/auth/register -H 'Content-Type: application/json' \

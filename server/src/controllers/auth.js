@@ -15,8 +15,8 @@ const DUMMY_HASH = bcrypt.hashSync('timing-protection', COST);
 // ---------- Валидация (правила те же, что на клиенте: client/src/js/validators.js) ----------
 const RESERVED = ['admin', 'administrator', 'moderator', 'support', 'val', 'vologdaamateurleague'];
 const email = z.string().trim().toLowerCase().max(254).regex(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/);
-const nick = z.string().trim().regex(/^[A-Za-zА-Яа-яЁё0-9_.\-]{3,20}$/).refine((v) => !RESERVED.includes(v.toLowerCase()));
-const password = z.string().min(8).max(128).regex(/[A-Za-zА-Яа-я]/).regex(/\d/);
+export const nick = z.string().trim().regex(/^[A-Za-zА-Яа-яЁё0-9_.\-]{3,20}$/).refine((v) => !RESERVED.includes(v.toLowerCase()));
+export const password = z.string().min(8).max(128).regex(/[A-Za-zА-Яа-я]/).regex(/\d/);
 const token = z.string().min(20).max(200);
 
 const schemas = {
@@ -42,9 +42,10 @@ export const publicUser = (u) => ({
   role: u.role,
   steam: u.steam_id ? { name: u.steam_name } : null,
   telegram: u.telegram_username ? { username: u.telegram_username } : null,
+  notifications: u.notifications || null,
 });
 
-function startSession(res, userId, remember) {
+export function startSession(res, userId, remember) {
   const jwtToken = jwt.sign({ sub: userId }, config.jwtSecret, { expiresIn: remember ? '30d' : '2d' });
   // «Запомнить меня» — cookie на 30 дней, иначе живёт до закрытия браузера.
   res.cookie(config.cookieName, jwtToken, { ...cookieOptions, maxAge: remember ? 30 * 24 * 3600 * 1000 : undefined });
@@ -133,7 +134,7 @@ export async function resetPassword(req, res) {
        UPDATE user_tokens SET used_at = now()
        WHERE token_hash = $1 AND kind = 'reset_password' AND used_at IS NULL AND expires_at > now()
        RETURNING user_id)
-     UPDATE users SET password_hash = $2, email_verified_at = COALESCE(email_verified_at, now())
+     UPDATE users SET password_hash = $2, password_changed_at = now(), email_verified_at = COALESCE(email_verified_at, now())
      WHERE id IN (SELECT user_id FROM t) RETURNING id`,
     [sha256(d.token), hash],
   );

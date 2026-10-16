@@ -58,7 +58,7 @@ export default {
           <p class="set-status" id="notifStatus" role="status"></p>
         </section>
         <section class="acc-card acc-wide danger">
-          <h2>Удаление аккаунта</h2><p class="acc-sub">Профиль, привязки и история будут удалены без возможности восстановления. Команда, где вы капитан, останется без капитана.</p>
+          <h2>Удаление аккаунта</h2><p class="acc-sub">Профиль, привязки и история будут удалены без возможности восстановления. Команды, где вы единственный игрок, удалятся вместе с аккаунтом. Если вы капитан команды с другими игроками, сначала передайте капитанство на странице команды.</p>
           <button type="button" class="btn btn-danger btn-sm" id="delOpen">Удалить аккаунт</button>
           <form class="del-panel" id="delForm" hidden novalidate>
             <label for="delNick">Для подтверждения введите свой ник: <b>${esc(u.nick)}</b></label>
@@ -123,7 +123,7 @@ export default {
       if (!wk.valid()) return;
       wk.busy(true);
       try { await settings.changePassword({ current: wf.current.value, password: wf.next.value }); if (alive) { wf.reset(); $('#strength', wf).dataset.level = 0; $('#strengthLabel', wf).textContent = ''; wk.say('Пароль изменён.', true); } }
-      catch (err) { if (alive) { if (err.code === 'invalid_credentials') { wk.setErr('current', 'Неверный текущий пароль.'); wf.current.focus(); } else wk.say(toError(err)); } }
+      catch (err) { if (alive) { if (err.code === 'invalid_credentials') { wk.setErr('current', 'Неверный текущий пароль.'); wf.current.focus(); } else if (err.code === 'no_password') wk.say('У аккаунта нет пароля (вход через Steam).'); else wk.say(toError(err)); } }
       if (alive) wk.busy(false);
     });
 
@@ -149,7 +149,15 @@ export default {
       if (go.disabled) return;
       go.disabled = true; go.classList.add('loading');
       try { await settings.deleteAccount({ nick: dn.value.trim() }); await account.logout().catch(() => {}); clearUser(); navigate('/'); }
-      catch (err) { if (alive) { go.classList.remove('loading'); go.disabled = false; ds.textContent = toError(err); ds.className = 'set-status bad'; } }
+      catch (err) {
+        if (!alive) return;
+        go.classList.remove('loading'); go.disabled = false;
+        ds.textContent = err.code === 'captain_must_transfer'
+          ? `Вы капитан команд с другими игроками: ${(err.details || []).join(', ')}. Передайте капитанство на странице команды (меню «Действия» у игрока) и повторите.`
+          : err.code === 'in_tournament' ? `Вы в составе заявки на турнир: ${(err.details || []).join(', ')}. Попросите капитана заменить вас в заявке или снимите заявку, затем повторите.`
+          : err.code === 'last_admin' ? 'Вы единственный администратор. Назначьте другого, прежде чем удалять аккаунт.' : toError(err);
+        ds.className = 'set-status bad';
+      }
     });
 
     return () => { alive = false; clearTimeout(t); };

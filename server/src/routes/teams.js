@@ -7,6 +7,7 @@ const router = Router();
 const logoBody = express.raw({ type: ['image/png', 'image/jpeg', 'image/webp'], limit: '1mb' });
 const auth = [requireAuth, writeLimiter];
 
+router.get('/', h(c.directory));
 router.get('/mine', requireAuth, h(c.listMine));
 router.post('/', ...auth, h(c.create));
 router.get('/:slug', optionalAuth, h(c.get));

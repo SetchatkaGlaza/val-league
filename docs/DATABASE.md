@@ -58,7 +58,15 @@ const { rows } = await query('SELECT id, nick FROM users WHERE email = $1', [ema
 - `team_members` — состав: `main` (основа, до 5) и `sub` (запасные, до 2). Капитан тоже здесь.
 - `team_invites` — персональные приглашения по нику (`pending / accepted / declined / revoked`). Приглашения по ссылке строк не создают.
 
-Дальше схема растёт по этапам ТЗ: турниры, матчи, оплаты. Новые таблицы добавляйте в `schema.sql` с `CREATE TABLE IF NOT EXISTS`; когда понадобятся изменения существующих таблиц, перейдите на миграции (например, `node-pg-migrate`).
+- `users` также хранит `password_changed_at` (сессии старше этого момента недействительны) и `notifications` (jsonb, настройки уведомлений).
+- `tournaments` — турниры: название, адрес `/tournaments/<slug>`, дата, формат (`team_size`, `match_format`), взнос, призовые по местам (jsonb), лимит команд, пул карт, статус (`draft / upcoming / live / finished / cancelled`), победитель.
+
+- `tournament_registrations` — заявки команд на турниры: статус (`pending_payment / paid / waitlist / cancelled`), снимок состава, сумма, код платежа, срок оплаты, `refund_due`. Подробно: `docs/REGISTRATION.md`.
+
+Дальше схема растёт по этапам ТЗ: матчи, новости, рейтинг. Новые таблицы добавляйте в `schema.sql` с `CREATE TABLE IF NOT EXISTS`; когда понадобятся изменения существующих таблиц, перейдите на миграции (например, `node-pg-migrate`).
 
 ## Бэкапы
 В облаке включите автоматические бэкапы. Локально: `docker compose exec db pg_dump -U val val > backup.sql`.
+
+## Администратор
+Роль `admin` выдаётся командой `npm run admin:make -- почта_или_ник` (или в pgAdmin: `UPDATE users SET role = 'admin' WHERE email = '…';`). Загруженные логотипы лежат в `UPLOADS_DIR` — копируйте их вместе с дампом БД.

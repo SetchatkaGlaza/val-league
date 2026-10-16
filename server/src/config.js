@@ -18,6 +18,16 @@ export const config = {
   mailFrom: process.env.MAIL_FROM || 'VAL <no-reply@val-league.ru>',
   // Загруженные файлы (логотипы команд). В продакшене укажите путь вне папки с кодом и включите его в бэкапы.
   uploadsDir: process.env.UPLOADS_DIR || fileURLToPath(new URL('../uploads', import.meta.url)),
+  // Карты CS2, из которых админ собирает пул турнира (клиент: client/src/views/admin-parts.js).
+  maps: ['de_ancient', 'de_anubis', 'de_dust2', 'de_inferno', 'de_mirage', 'de_nuke', 'de_overpass', 'de_train', 'de_vertigo'],
   // Лимиты команд: основа + запасные, сколько команд можно создать и в скольких состоять.
+  // Регистрация на турниры. Эти значения — допущения по умолчанию; их согласуйте с организаторами (docs/REGISTRATION.md).
+  registration: {
+    closeMinutes: 60,        // за сколько минут до старта закрываются регистрация, отмена и смена состава
+    payHours: 24,            // сколько держим место за неоплаченной заявкой
+    waitlistMax: 8,          // размер листа ожидания
+    requireSteam: process.env.REQUIRE_STEAM === 'true',   // требовать привязанный Steam у каждого игрока основы (включить после этапа 9)
+    paymentDetails: process.env.PAYMENT_DETAILS || 'Реквизиты для перевода пришлёт организатор: напишите в Telegram лиги, указав код платежа.',
+  },
   teams: { maxMain: 5, maxSub: 2, maxOwned: 3, maxJoined: 10, maxPendingInvites: 20 },
 };

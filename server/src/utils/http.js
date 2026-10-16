@@ -2,11 +2,12 @@ import { z } from 'zod';
 
 /** Ожидаемая ошибка запроса: глобальный обработчик превращает её в { code, field } с нужным статусом. */
 export class HttpError extends Error {
-  constructor(status, code, field) {
+  constructor(status, code, field, details) {
     super(code);
     this.status = status;
     this.code = code;
     this.field = field;
+    this.details = details;
   }
 }
 

@@ -67,3 +67,63 @@ CREATE TABLE IF NOT EXISTS team_invites (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS team_invites_pending_uq ON team_invites (team_id, invitee_id) WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS team_invites_invitee_idx ON team_invites (invitee_id) WHERE status = 'pending';
+
+-- ---------- Аккаунт: смена пароля и уведомления ----------
+-- password_changed_at: все сессии, выданные раньше этого момента, перестают действовать (смена/сброс пароля).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notifications jsonb;     -- { registered: {email, tg}, tomorrow: {...}, match30: {...} }
+
+-- ---------- Турниры (этап 3 ТЗ) ----------
+-- status: draft — черновик (виден только админу), upcoming — анонс/регистрация, live — идёт, finished — прошёл, cancelled — отменён.
+CREATE TABLE IF NOT EXISTS tournaments (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug              text NOT NULL UNIQUE,                  -- адрес /tournaments/<slug>, не меняется при переименовании
+  name              text NOT NULL,
+  description       text NOT NULL DEFAULT '',
+  starts_at         timestamptz NOT NULL,
+  team_size         smallint NOT NULL DEFAULT 5 CHECK (team_size IN (2, 5)),
+  bracket           text NOT NULL DEFAULT 'single_elimination' CHECK (bracket IN ('single_elimination')),
+  match_format      text NOT NULL DEFAULT 'bo1' CHECK (match_format IN ('bo1', 'bo3')),
+  fee               integer NOT NULL DEFAULT 0 CHECK (fee >= 0),            -- ₽ с команды, 0 — бесплатно
+  prize_places      jsonb NOT NULL DEFAULT '[]',                            -- [{ "place": 1, "amount": 30000 }, ...]
+  max_teams         smallint NOT NULL CHECK (max_teams BETWEEN 2 AND 128),
+  map_pool          text[] NOT NULL DEFAULT '{}',
+  status            text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'upcoming', 'live', 'finished', 'cancelled')),
+  registration_open boolean NOT NULL DEFAULT true,
+  winner_name       text,                                                   -- пока вручную; на этапе сетки возьмётся из результатов
+  winner_roster     text[] NOT NULL DEFAULT '{}',
+  created_by        uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tournaments_status_idx ON tournaments (status, starts_at);
+
+-- ---------- Заявки команд на турниры (этап 4 ТЗ) ----------
+-- Статусы: pending_payment — место занято, ждём оплату; paid — участие подтверждено; waitlist — лист ожидания; cancelled — снята (см. cancel_reason).
+-- Места занимают pending_payment и paid. Состав заявки (roster) — снимок на момент подачи; менять его можно до закрытия регистрации.
+CREATE TABLE IF NOT EXISTS tournament_registrations (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id     uuid NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  team_id           uuid REFERENCES teams(id) ON DELETE SET NULL,      -- история остаётся, даже если команду потом удалили
+  team_name         text NOT NULL,
+  status            text NOT NULL CHECK (status IN ('pending_payment', 'paid', 'waitlist', 'cancelled')),
+  roster            jsonb NOT NULL,                                    -- [{ "id": "...", "nick": "..." }]
+  roster_ids        uuid[] NOT NULL,
+  registered_by     uuid REFERENCES users(id) ON DELETE SET NULL,
+  rules_accepted_at timestamptz NOT NULL DEFAULT now(),
+  fee               integer NOT NULL DEFAULT 0,                        -- сумма к оплате на момент заявки
+  payment_code      text NOT NULL,                                     -- код для комментария к переводу
+  pay_until         timestamptz,
+  paid_at           timestamptz,
+  confirmed_by      uuid REFERENCES users(id) ON DELETE SET NULL,
+  cancel_reason     text CHECK (cancel_reason IN ('captain', 'admin', 'expired', 'tournament_started', 'tournament_cancelled')),
+  note              text,
+  refund_due        boolean NOT NULL DEFAULT false,                    -- оплаченную заявку сняли: взнос нужно вернуть вручную
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS tr_code_uq ON tournament_registrations (payment_code);
+CREATE UNIQUE INDEX IF NOT EXISTS tr_team_active_uq ON tournament_registrations (tournament_id, team_id) WHERE team_id IS NOT NULL AND status <> 'cancelled';
+CREATE INDEX IF NOT EXISTS tr_tournament_idx ON tournament_registrations (tournament_id, status, created_at);
+CREATE INDEX IF NOT EXISTS tr_team_idx ON tournament_registrations (team_id);
+CREATE INDEX IF NOT EXISTS tr_roster_gin ON tournament_registrations USING gin (roster_ids);

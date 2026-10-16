@@ -3,6 +3,7 @@ import './styles/auth.css';
 import './styles/doc.css';
 import './styles/app.css';
 import './styles/teams.css';
+import './styles/tournaments.css';
 import { initBackground } from './js/background.js';
 import { motion, $ } from './js/ui.js';
 import { assets } from './js/layouts.js';

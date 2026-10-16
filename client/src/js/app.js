@@ -33,10 +33,12 @@ function focusHeading() {
   h.focus({ preventScroll: true });
 }
 
-async function onRoute(view, ctx) {
+async function onRoute(view, ctx) {   // view можно подменить на 404 (см. проверку админа ниже)
   // Закрытые страницы: без входа отправляем на /login и вернём обратно через ?next=
   // (вместе с ?token=… — иначе приглашение по ссылке потеряется после входа)
   if (view.protected && !getUser()) { router.navigate(`/login?next=${encodeURIComponent(ctx.path + (ctx.query.toString() ? `?${ctx.query}` : ''))}`, { replace: true }); return 'aborted'; }
+  // Админка: не администратору показываем «не найдено» (сервер всё равно проверяет права сам)
+  if (view.admin && getUser()?.role !== 'admin') view = notFound;
   const sameLayout = layoutName === view.layout;
   const first = !layout;
 

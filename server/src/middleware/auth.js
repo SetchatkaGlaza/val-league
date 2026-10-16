@@ -29,16 +29,25 @@ export const writeLimiter = rateLimit({
   keyGenerator: (req) => req.user?.id || req.ip,
 });
 
+/** Подбор текущего пароля при его смене: 10 неудачных попыток за 15 минут на пользователя. */
+export const passwordLimiter = rateLimit({
+  windowMs: 15 * 60_000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false, skipSuccessfulRequests: true, handler: limited,
+  keyGenerator: (req) => req.user?.id || req.ip,
+});
+
 export const cookieOptions = { httpOnly: true, sameSite: 'lax', secure: config.isProd, path: '/' };
+
+/** Сессия недействительна, если пароль меняли после её выдачи (смена или сброс пароля завершает все старые сессии). */
+const sessionStale = (user, iat) => !!user.password_changed_at && Math.floor(user.password_changed_at.getTime() / 1000) > iat;
 
 /** Достаёт пользователя из cookie. Блокировка действует сразу: пользователь каждый раз читается из БД. */
 export async function requireAuth(req, res, next) {
   try {
     const raw = req.cookies?.[config.cookieName];
     if (!raw) return res.status(401).json({ code: 'unauthorized' });
-    const { sub } = jwt.verify(raw, config.jwtSecret);
+    const { sub, iat } = jwt.verify(raw, config.jwtSecret);
     const { rows } = await query('SELECT * FROM users WHERE id = $1', [sub]);
-    if (!rows[0] || rows[0].blocked) {
+    if (!rows[0] || rows[0].blocked || sessionStale(rows[0], iat)) {
       res.clearCookie(config.cookieName, cookieOptions);
       return res.status(401).json({ code: 'unauthorized' });
     }
@@ -53,14 +62,20 @@ export async function requireAuth(req, res, next) {
   }
 }
 
+/** Только администраторы. Ставить после requireAuth. */
+export function requireAdmin(req, res, next) {
+  if (req.user?.role !== 'admin') return res.status(403).json({ code: 'forbidden' });
+  next();
+}
+
 /** Для публичных страниц, которым нужно знать, кто смотрит (капитан видит больше). Без входа просто идёт дальше. */
 export async function optionalAuth(req, _res, next) {
   try {
     const raw = req.cookies?.[config.cookieName];
     if (raw) {
-      const { sub } = jwt.verify(raw, config.jwtSecret);
+      const { sub, iat } = jwt.verify(raw, config.jwtSecret);
       const { rows } = await query('SELECT * FROM users WHERE id = $1', [sub]);
-      if (rows[0] && !rows[0].blocked) req.user = rows[0];
+      if (rows[0] && !rows[0].blocked && !sessionStale(rows[0], iat)) req.user = rows[0];
     }
   } catch (e) {
     if (e.name !== 'JsonWebTokenError' && e.name !== 'TokenExpiredError') return next(e);

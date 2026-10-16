@@ -10,6 +10,11 @@ import home from './views/home.js';
 import teamNew from './views/team-new.js';
 import team from './views/team.js';
 import invite from './views/invite.js';
+import tournamentsList from './views/tournaments.js';
+import tournament from './views/tournament.js';
+import teamsList from './views/teams-list.js';
+import adminHome from './views/admin.js';
+import adminTournament from './views/admin-tournament.js';
 import { notFound } from './views/stubs.js';
 
 // Новая страница: файл в src/views + строка здесь. Все страницы входят в один бандл,
@@ -25,13 +30,19 @@ export const routes = {
   '/settings': settingsPage,
   '/rules': rules,
   '/privacy': privacy,
+  '/teams': teamsList,
   '/teams/new': teamNew,
+  '/tournaments': tournamentsList,
+  '/admin': adminHome,
+  '/admin/tournaments/new': adminTournament,
   '/invite': invite,
 };
 
 // Адреса с параметром: [шаблон, имя параметра, страница]. Точные адреса из таблицы выше проверяются первыми.
 const dynamic = [
   [/^\/teams\/([a-z0-9-]{1,40})$/, 'slug', team],
+  [/^\/tournaments\/([a-z0-9-]{1,40})$/, 'slug', tournament],
+  [/^\/admin\/tournaments\/([0-9a-f-]{36})$/i, 'id', adminTournament],
 ];
 
 export function resolve(path) {

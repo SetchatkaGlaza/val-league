@@ -6,6 +6,7 @@ import { config } from '../config.js';
 import { randomToken } from '../utils/token.js';
 import { slugify, RESERVED_SLUGS } from '../utils/slug.js';
 import { HttpError, parse, uuid } from '../utils/http.js';
+import { ACTIVE } from '../services/registrations.js';
 
 const { maxMain, maxSub, maxOwned, maxJoined, maxPendingInvites } = config.teams;
 const MAX_TOTAL = maxMain + maxSub;
@@ -69,6 +70,24 @@ function sniffImage(buf) {
 }
 
 // ---------- Ответы ----------
+/** Турниры команды: живые заявки в предстоящих и идущих турнирах и сыгранные (оплаченные). Снятые заявки в историю не попадают. */
+async function teamTournaments(teamId) {
+  const { rows } = await query(
+    `SELECT t.slug, t.name, t.status, t.starts_at AS \"startsAt\", r.status AS \"regStatus\"
+       FROM tournament_registrations r JOIN tournaments t ON t.id = r.tournament_id
+      WHERE r.team_id = $1 AND r.status <> 'cancelled' AND t.status <> 'draft'
+      ORDER BY t.starts_at DESC LIMIT 20`, [teamId]);
+  return rows;
+}
+
+/** Активные заявки команды в предстоящих/идущих турнирах: пока они есть, состав и сама команда заморожены. */
+async function activeRegistrations(db, teamId) {
+  const { rows } = await db.query(
+    `SELECT r.roster_ids, t.name FROM tournament_registrations r JOIN tournaments t ON t.id = r.tournament_id
+      WHERE r.team_id = $1 AND r.status = ANY($2::text[]) AND t.status IN ('upcoming', 'live')`, [teamId, ACTIVE]);
+  return rows;
+}
+
 async function teamPayload(team, user) {
   const { rows } = await query(
     `SELECT u.id, u.nick, (u.steam_id IS NOT NULL) AS steam, m.role
@@ -88,7 +107,7 @@ async function teamPayload(team, user) {
     },
     members,
     viewer: user ? { isMember: !!me, isCaptain, role: me?.role ?? null } : null,
-    tournaments: [],   // появятся вместе с регистрацией на турниры (этап 4)
+    tournaments: await teamTournaments(team.id),
   };
   if (isCaptain) {
     out.inviteToken = team.invite_token;
@@ -136,6 +155,21 @@ export async function listMine(req, res) {
     [uid],
   )).rows;
   res.json({ teams, invites, limits: { owned: maxOwned } });
+}
+
+/** Публичный каталог команд: поиск по названию, постранично. */
+export async function directory(req, res) {
+  const q = String(req.query.q ?? '').trim().slice(0, 40).replace(/[\\%_]/g, (c) => `\\${c}`);
+  const limit = 24, offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  const where = q ? `WHERE t.name ILIKE $1 ESCAPE '\\'` : '';
+  const args = q ? [`%${q}%`] : [];
+  const { rows } = await query(
+    `SELECT t.slug, t.name, t.logo, uc.nick AS captain,
+            (SELECT count(*) FROM team_members m WHERE m.team_id = t.id)::int AS members
+       FROM teams t LEFT JOIN users uc ON uc.id = t.captain_id ${where}
+      ORDER BY t.created_at DESC LIMIT ${limit} OFFSET ${offset}`, args);
+  const { rows: [{ n }] } = await query(`SELECT count(*)::int AS n FROM teams t ${where}`, args);
+  res.json({ teams: rows, total: n, limit });
 }
 
 export async function create(req, res) {
@@ -192,6 +226,8 @@ export async function update(req, res) {
 export async function remove(req, res) {
   const team = await withTx(async (db) => {
     const t = await lockCaptainTeam(db, req);
+    const regs = await activeRegistrations(db, t.id);
+    if (regs.length) throw new HttpError(409, 'team_registered', undefined, regs.map((r) => r.name));
     await db.query('DELETE FROM teams WHERE id = $1', [t.id]);
     return t;
   });
@@ -292,6 +328,9 @@ export async function removeMember(req, res) {
     const isSelf = userId === req.user.id;
     if (!isSelf && team.captain_id !== req.user.id) throw new HttpError(403, 'forbidden');
     if (userId === team.captain_id) throw new HttpError(409, 'captain_cannot_leave');
+    // Игрок, заявленный на турнир, не может уйти и его нельзя исключить: сначала капитан меняет состав заявки на странице турнира
+    const regs = (await activeRegistrations(db, team.id)).filter((r) => r.roster_ids.includes(userId));
+    if (regs.length) throw new HttpError(409, 'roster_locked', undefined, regs.map((r) => r.name));
     const { rowCount } = await db.query('DELETE FROM team_members WHERE team_id = $1 AND user_id = $2', [team.id, userId]);
     if (!rowCount) throw new HttpError(404, 'not_found');
   });
