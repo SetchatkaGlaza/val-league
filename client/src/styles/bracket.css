@@ -59,7 +59,7 @@ a.bk-m:hover, a.bk-m:focus-visible { border-color: rgba(244,17,44,.6); transform
 
 /* --- Страница матча ---------------------------------------------------------- */
 .mt-hero h1 { margin: 0 0 12px; display: block; font-size: clamp(1.5rem, 4vw, 2.2rem); }
-.mt-hero .label { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.mt-hero .label { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; }
 .mt-board { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: clamp(10px, 3vw, 28px); padding: clamp(18px, 4vw, 32px); border: 1px solid var(--line); border-radius: 22px; background: radial-gradient(600px 180px at 50% 0, rgba(244,17,44,.12), transparent 70%), rgba(255,255,255,.03); }
 .mt-team { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; min-width: 0; }
 .mt-team .tm-logo { width: 84px; height: 84px; }

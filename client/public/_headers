@@ -1,0 +1,7 @@
+# Кэш статики (Netlify / Cloudflare Pages). Для nginx/Apache перенесите те же правила в конфиг сервера.
+/media/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=86400
+/brand/*
+  Cache-Control: public, max-age=2592000, stale-while-revalidate=86400
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

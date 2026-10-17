@@ -1,4 +1,4 @@
-import shield from '../assets/logo-shield.png';
+import shield from '../assets/logo-shield.webp';
 import { $, motion, gsap } from '../js/ui.js';
 
 const reveal = (root) => {

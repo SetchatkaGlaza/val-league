@@ -7,14 +7,36 @@
 .nav-toggle[aria-expanded='true'] .b3 { transform: translateY(-5px) rotate(-45deg); }
 .doc-nav .doc-admin { color: var(--accent-2); }
 @media (max-width: 760px) {
-  .nav-toggle { display: grid; margin-left: auto; }
-  .doc-nav { position: absolute; left: 0; right: 0; top: 100%; display: grid; gap: 2px; padding: 8px clamp(16px, 4vw, 48px) 16px; background: rgba(10,10,10,.97); border-bottom: 1px solid var(--line); box-shadow: 0 24px 50px -20px rgba(0,0,0,.9); visibility: hidden; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .25s, transform .25s var(--ease), visibility 0s .25s; }
-  .doc-nav.open { visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity .25s, transform .25s var(--ease); }
-  .doc-nav a:not(.doc-login) { display: flex; align-items: center; min-height: 48px; padding: 0 4px; font-size: 1rem !important; border-bottom: 1px solid var(--line); }
-  .doc-nav a[aria-current]::after { display: none; }
-  .doc-nav a[aria-current] { color: var(--accent-2); }
-  .doc-nav .doc-login { margin-top: 10px; min-height: 48px; display: flex; align-items: center; justify-content: center; }
+  .nav-toggle { display: grid; margin-left: auto; position: relative; z-index: 2; background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.14); }
+  .nav-toggle[aria-expanded='true'] { background: var(--accent); border-color: var(--accent); box-shadow: 0 10px 26px -10px rgba(244,17,44,.8); }
+  .doc-logo { position: relative; z-index: 2; }
   .doc-logo img { width: 100px !important; }
+  html.menu-open { overflow: hidden; }
+  .layout-doc.layout-doc .doc-top.menu-open { background: rgba(8,8,8,.98); border-bottom-color: rgba(255,255,255,.08); -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+  /* Панель на весь экран под шапкой: раскрывается кругом от кнопки, пункты выезжают по очереди */
+  .doc-nav { position: absolute; left: 0; right: 0; top: 100%; z-index: 1; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; height: calc(100dvh - var(--hdr, 64px)); overflow-y: auto; overscroll-behavior: contain; padding: 14px clamp(18px, 6vw, 40px) max(26px, env(safe-area-inset-bottom));
+    background-color: #080808; background-image: radial-gradient(520px 320px at 100% 0, rgba(244,17,44,.22), transparent 70%), radial-gradient(420px 260px at 0 100%, rgba(244,17,44,.1), transparent 70%);
+    clip-path: circle(0 at calc(100% - 38px) 0); visibility: hidden; pointer-events: none; transition: clip-path .55s var(--ease), visibility 0s .55s; counter-reset: nv; }
+  .doc-nav.open { clip-path: circle(150% at calc(100% - 38px) 0); visibility: visible; pointer-events: auto; transition: clip-path .65s var(--ease), visibility 0s; }
+  .doc-nav a:not(.doc-login) { counter-increment: nv; position: relative; display: flex; align-items: center; gap: 16px; min-height: 64px; padding: 0 2px; border-bottom: 1px solid rgba(255,255,255,.08); color: #e4e4e7 !important; font: 700 1.9rem/1 var(--font-head) !important; letter-spacing: .02em; text-transform: uppercase; opacity: 0; transform: translateY(22px); transition: opacity .3s, transform .3s var(--ease), color .2s; }
+  .doc-nav a:not(.doc-login)::before { content: counter(nv, decimal-leading-zero); min-width: 26px; color: var(--accent-2); font: 700 .78rem/1 var(--font-head); letter-spacing: .14em; }
+  .doc-nav a:not(.doc-login)::after { content: '→'; position: static; height: auto; margin-left: auto; background: none; color: rgba(255,255,255,.28); font: 400 1.3rem/1 var(--font-body); transform: translateX(-6px); opacity: 0; transition: transform .3s var(--ease), opacity .3s; }
+  .doc-nav a:not(.doc-login):active, .doc-nav a:not(.doc-login):hover { color: #fff !important; }
+  .doc-nav a:not(.doc-login):active::after, .doc-nav a:not(.doc-login):hover::after { transform: none; opacity: 1; color: var(--accent-2); }
+  .doc-nav a[aria-current]:not(.doc-login) { color: #fff !important; }
+  .doc-nav a[aria-current]:not(.doc-login)::after { content: ''; width: 8px; height: 8px; margin-left: auto; border-radius: 2px; background: var(--accent); transform: rotate(45deg); opacity: 1; box-shadow: 0 0 14px rgba(244,17,44,.8); }
+  .doc-nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+  .doc-nav.open a:not(.doc-login) { opacity: 1; transform: none; transition-delay: calc(var(--i, 0) * 60ms + 160ms); }
+  .doc-nav a:nth-child(1) { --i: 0; } .doc-nav a:nth-child(2) { --i: 1; } .doc-nav a:nth-child(3) { --i: 2; } .doc-nav a:nth-child(4) { --i: 3; } .doc-nav a:nth-child(5) { --i: 4; } .doc-nav a:nth-child(6) { --i: 5; }
+  .doc-nav .doc-login { order: 9; margin-top: auto; min-height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 14px; font: 700 1.05rem var(--font-body); opacity: 0; transform: translateY(22px); transition: opacity .3s, transform .3s var(--ease); }
+  .doc-nav.open .doc-login { opacity: 1; transform: none; transition-delay: 460ms; box-shadow: 0 16px 36px -14px rgba(244,17,44,.85); }
+  .doc-nav::after { content: 'VOLOGDA AMATEUR LEAGUE · CS2'; order: 10; padding-top: 18px; text-align: center; color: #5f5f68; font: 700 .7rem/1 var(--font-head); letter-spacing: .24em; }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) {
+  .doc-nav, .doc-nav.open { transition: none; clip-path: none; }
+  .doc-nav:not(.open) { opacity: 0; }
+  .doc-nav a:not(.doc-login), .doc-nav .doc-login { opacity: 1; transform: none; transition: none; }
 }
 
 /* Заголовки страниц, вкладки */
@@ -61,7 +83,7 @@
 .t-detail { max-width: 1040px; }
 .t-hero { flex-wrap: wrap; align-items: stretch; justify-content: space-between; }
 .t-hero h1 { display: block; margin: 0 0 12px; }
-.t-hero .label { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.t-hero .label { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; }
 .t-hero .slots { margin-top: 4px; }
 .t-timer { align-self: center; }
 .t-winner { text-align: center; border-color: rgba(244,17,44,.4); background: radial-gradient(500px 160px at 50% 0, rgba(244,17,44,.16), transparent 70%), rgba(255,255,255,.03); }

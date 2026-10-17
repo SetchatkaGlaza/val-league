@@ -1,8 +1,8 @@
 import { gsap, motion, $, $$, tween } from './ui.js';
 import { getUser } from './session.js';
 import { loadSite, applySite } from './site.js';
-import shield from '../assets/logo-shield.png';
-import logoHeader from '../assets/logo-header.png';
+import shield from '../assets/logo-shield.webp';
+import logoHeader from '../assets/logo-header.webp';
 
 export const assets = { shield, logoHeader };
 
@@ -24,6 +24,7 @@ const AUTH = `
         <div id="slot" class="slot"></div>
       </div>
       <p class="legal">Продолжая, вы соглашаетесь с <a href="/rules" data-doc="rules">регламентом</a> и <a href="/privacy" data-doc="privacy">политикой конфиденциальности</a>.</p>
+      <a class="foot-studio foot-studio-auth" href="https://setchatkaglaza.github.io/setchatkaglaza/" target="_blank" rel="noopener noreferrer" aria-label="SetchatkaGlaza Web Studio — разработчик сайта (откроется в новой вкладке)"><img src="/brand/setchatkaglaza.webp" alt="SetchatkaGlaza Web Studio" width="560" height="298" loading="lazy" decoding="async" /></a>
     </section>
   </main>
 </div>`;
@@ -47,7 +48,7 @@ const DOC = `
     </nav>
   </header>
   <div id="slot" class="doc-slot"></div>
-  <footer class="doc-foot">© <span id="year"></span> VOLOGDA AMATEUR LEAGUE · <a href="/tournaments">Турниры</a> · <a href="/teams">Команды</a> · <a href="/winners">Победители</a> · <a href="/rating">Рейтинг</a> · <a href="/rules">Регламент</a> · <a href="/privacy">Конфиденциальность</a><p class="foot-contacts" id="footContacts" hidden></p></footer>
+  <footer class="doc-foot"><div class="foot-in"><span class="foot-brand">© <span id="year"></span> VOLOGDA AMATEUR LEAGUE</span><i class="sep" aria-hidden="true"> · </i><nav class="foot-links" aria-label="Ссылки подвала"><a href="/tournaments">Турниры</a><i class="sep" aria-hidden="true"> · </i><a href="/teams">Команды</a><i class="sep" aria-hidden="true"> · </i><a href="/winners">Победители</a><i class="sep" aria-hidden="true"> · </i><a href="/rating">Рейтинг</a><i class="sep" aria-hidden="true"> · </i><a href="/rules">Регламент</a><i class="sep" aria-hidden="true"> · </i><a href="/privacy">Конфиденциальность</a><i class="sep" aria-hidden="true"> · </i><a class="foot-studio" href="https://setchatkaglaza.github.io/setchatkaglaza/" target="_blank" rel="noopener noreferrer" aria-label="SetchatkaGlaza Web Studio — разработчик сайта (откроется в новой вкладке)"><img src="/brand/setchatkaglaza.webp" alt="SetchatkaGlaza Web Studio" width="560" height="298" loading="lazy" decoding="async" /></a></nav><p class="foot-contacts" id="footContacts" hidden></p></div></footer>
 </div>`;
 
 function make(html) {
@@ -89,14 +90,18 @@ export const layouts = {
 
 /** Мобильное меню: открывается кнопкой, закрывается кликом по пункту, вне меню и клавишей Esc. */
 function setMenu(el, open) {
-  const nav = $('#docNav', el), btn = $('#navToggle', el);
+  const nav = $('#docNav', el), btn = $('#navToggle', el), top = $('.doc-top', el);
   if (!nav || !btn) return;
+  if (open && top) el.style.setProperty('--hdr', `${top.offsetHeight}px`);
   nav.classList.toggle('open', open);
+  top && top.classList.toggle('menu-open', open);
+  document.documentElement.classList.toggle('menu-open', open);
   btn.setAttribute('aria-expanded', String(open));
   btn.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
 }
 const closeMenu = () => { const el = document.querySelector('.layout-doc'); if (el) setMenu(el, false); };
 document.addEventListener('click', (e) => { if (!e.target.closest('.doc-top')) closeMenu(); else if (e.target.closest('.doc-nav a')) closeMenu(); });
+window.addEventListener('resize', () => { if (window.innerWidth > 760) closeMenu(); }, { passive: true });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const t = document.getElementById('navToggle'); if (t && t.getAttribute('aria-expanded') === 'true') { closeMenu(); t.focus(); } } });
 
 /** Подсветка текущего раздела в шапке; «Админка» видна только администраторам. */

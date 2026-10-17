@@ -48,3 +48,22 @@
 .site-banner-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .foot-contacts { margin: 10px 0 0; overflow-wrap: anywhere; }
 .foot-contacts[hidden] { display: none; }
+
+/* Подвал: обёртка и разделители не меняют вид на обычных страницах (этап 4.5) */
+.foot-links { display: inline; }
+.sep { font-style: normal; }
+
+
+/* Воздух между подписью/плашкой и заголовком: у Rajdhani заглавные выходят за строку при line-height ≤ 1 */
+:is(.label, .eyebrow) { line-height: 1.35; }
+:is(.label, .eyebrow) + :is(h1, h2, h3) { padding-top: .14em; }
+.label:has(> .st) { margin-bottom: 14px; }
+.t-hero .label { margin-bottom: 14px; }
+.t-hero h1, .bk-head h1 { padding-top: .08em; }
+
+/* Логотип студии: статичный, в одной строке со ссылками подвала */
+.foot-studio { display: inline-flex; align-items: center; vertical-align: middle; padding: 4px 2px; border-radius: 8px; line-height: 0; }
+.foot-studio img { display: block; width: auto; height: 34px; opacity: .72; transition: opacity .25s; }
+.foot-studio:hover img { opacity: 1; }
+.foot-studio:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.foot-studio-auth { display: flex; width: fit-content; margin: 12px 0 0; }
