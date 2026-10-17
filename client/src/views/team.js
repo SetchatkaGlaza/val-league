@@ -7,6 +7,7 @@ import { ICON, esc } from './parts.js';
 import { teamLogo, teamError, flash, longDate, plural } from './team-parts.js';
 import { REG_STATUS } from './registration-parts.js';
 import { dateShort } from './tournament-parts.js';
+import { historyHtml, loadHistory, playerLink } from './team-history.js';
 
 const skeleton = '<div class="tm-skel" aria-busy="true"><div class="sk sk-hero"></div><div class="sk sk-card"></div><div class="sk sk-card"></div></div>';
 
@@ -45,7 +46,7 @@ function memberRow(m, isCaptainViewer, team) {
   return `
   <li class="mem">
     <div class="mem-av" aria-hidden="true">${esc([...m.nick][0].toUpperCase())}</div>
-    <div class="mem-t"><b>${esc(m.nick)}</b>
+    <div class="mem-t"><b>${playerLink(m.nick)}</b>
       <span>${m.isCaptain ? '<i class="tm-badge cap">Капитан</i>' : ''}${m.steam ? `<i class="tm-badge steam" title="Steam подтверждён">${ICON.steam}Steam</i>` : ''}</span></div>
     ${menu}
   </li>`;
@@ -135,7 +136,7 @@ function dangerZone(d) {
   </section>`;
 }
 
-function page(d, note) {
+function page(d, note, hist) {
   const cap = !!d.viewer && d.viewer.isCaptain;
   return `
     ${note ? `<div class="banner ok" role="status">${esc(note)}</div>` : ''}
@@ -144,6 +145,7 @@ function page(d, note) {
       ${roster(d)}
       ${cap ? invitePanel(d) : ''}
       ${cap ? settingsPanel(d) : ''}
+      ${historyHtml(hist)}
       ${tournaments(d)}
       ${cap ? dangerZone(d) : ''}
     </div>`;
@@ -165,7 +167,7 @@ export default {
   mount(root, { navigate, params }) {
     const slug = params.slug;
     const body = $('#tmBody', root), toast = $('#toast', root);
-    let alive = true, data = null, toastTimer = 0, note = flash.take();
+    let alive = true, data = null, toastTimer = 0, note = flash.take(), hist = { state: 'loading' };
 
     const say = (text, ok = false) => {
       clearTimeout(toastTimer);
@@ -175,7 +177,7 @@ export default {
     const busy = (btn, v) => { if (btn) { btn.disabled = v; btn.classList.toggle('loading', v); } };
 
     const paint = (animate) => {
-      body.innerHTML = page(data, note); note = null;
+      body.innerHTML = page(data, note, hist); note = null;
       document.title = `${data.team.name} — VOLOGDA AMATEUR LEAGUE`;
       if (animate && motion) gsap.from($$('.tm-hero, .acc-card', body), { y: 22, opacity: 0, duration: .6, stagger: .08, ease: 'power3.out', clearProps: 'transform,opacity' });
     };
@@ -289,6 +291,8 @@ export default {
     });
 
     load(true);
+    // История участия грузится отдельно и обновляет только свой блок: формы на странице не сбрасываются
+    loadHistory(slug).then((h) => { hist = h; const el = $('#tmHistory', body); if (alive && el) el.outerHTML = historyHtml(hist); });
     return () => { alive = false; clearTimeout(toastTimer); document.removeEventListener('click', closeMenus); };
   },
 };

@@ -4,6 +4,7 @@ import { getUser } from '../js/session.js';
 import { ICON, esc } from './parts.js';
 import { teamLogo } from './team-parts.js';
 import { MATCH, dateLong, mapName, tournamentError } from './tournament-parts.js';
+import { playerLink } from './player-link.js';
 import { matchBadge, copyText, poll, safeUrl, nickOf, forfeitLabel } from './bracket-parts.js';
 
 const skeleton = '<div class="tm-skel" aria-busy="true"><div class="sk sk-hero"></div><div class="sk sk-card"></div></div>';
@@ -19,7 +20,7 @@ function rosterCard(m, s) {
   const t = m[s], list = (s === 'a' ? m.rosterA : m.rosterB) || [];
   if (!t) return '';
   return `<section class="acc-card"><h2>${esc(t.name)}</h2><p class="acc-sub">Состав на матч</p>${list.length
-    ? `<ul class="chips">${list.map((p) => `<li>${esc(nickOf(p))}</li>`).join('')}</ul>` : '<p class="tm-empty">Состав не указан.</p>'}</section>`;
+    ? `<ul class="chips">${list.map((p) => `<li>${playerLink(nickOf(p))}</li>`).join('')}</ul>` : '<p class="tm-empty">Состав не указан.</p>'}</section>`;
 }
 
 function lobbyCard(d) {

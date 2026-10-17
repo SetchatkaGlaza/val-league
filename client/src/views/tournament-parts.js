@@ -35,6 +35,16 @@ export const slotsLine = (t) => {
   return { pct: Math.round((t.teamsCount / t.maxTeams) * 100), text: `Команд: <b>${t.teamsCount}</b> из ${t.maxTeams}`, left: `${left} ${plural(left, 'свободное место', 'свободных места', 'свободных мест')}` };
 };
 
+/** Итоги в карточке турнира: победитель, а если известны призёры по сетке — и 2–3 места. */
+function podiumLine(t) {
+  const p = t.podium;
+  if (p?.first) {
+    const rest = [p.second ? `2 место: ${esc(p.second.name)}` : '', p.thirds?.length ? `3 место: ${p.thirds.map((x) => esc(x.name)).join(', ')}` : ''].filter(Boolean).join(' · ');
+    return `<div class="t-card-win"><p>Победитель: <b>${esc(p.first.name)}</b></p>${rest ? `<p class="t-card-rest">${rest}</p>` : ''}</div>`;
+  }
+  return t.winner ? `<p class="t-card-win">Победитель: <b>${esc(t.winner.name)}</b></p>` : '';
+}
+
 /** Карточка турнира для списков (вся карточка — ссылка). */
 export function tournamentCard(t) {
   const s = slotsLine(t);
@@ -47,7 +57,7 @@ export function tournamentCard(t) {
       <div><p class="label">Призовой фонд</p><p class="t-prize">${t.prizeTotal ? rub(t.prizeTotal) : '—'}</p></div>
       <div class="slots"><div class="slots-bar"><i style="width:${s.pct}%"></i></div><span>${s.text}</span></div>
     </div>
-    ${t.winner ? `<p class="t-card-win">Победитель: <b>${esc(t.winner.name)}</b></p>` : ''}
+    ${podiumLine(t)}
   </a>`;
 }
 

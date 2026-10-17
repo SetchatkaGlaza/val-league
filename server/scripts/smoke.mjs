@@ -203,6 +203,29 @@ try {
   check('финал завершает турнир и записывает победителя', rf.status === 200 && rf.data.match.winner === 'a' && rf.data.tournament.status === 'finished' && rf.data.tournament.winner === winName, rf.data);
   check('результат финала можно исправить, победитель меняется', (await adm.api('PUT', `/admin/matches/${mid2}/result`, { scoreA: 0, scoreB: 2 })).data.tournament?.winner === g2.data.rounds[0].matches[0].b.name);
   check('победитель сетки на главной', (await anon('GET', '/winners?limit=20')).data.winners?.some((w) => w.slug === bslug));
+  // Итоги: после исправления результата победитель — вторая сторона финала; двое в сетке — призёров 3 места нет
+  const bm = g2.data.rounds[0].matches[0];
+  const pub = await anon('GET', `/tournaments/${bslug}`);
+  check('страница турнира содержит призёров', pub.data.tournament.podium?.first?.name === bm.b.name && pub.data.tournament.podium?.second?.name === bm.a.name && pub.data.tournament.podium?.thirds?.length === 0, pub.data.tournament?.podium);
+  const arch = await anon('GET', '/winners?limit=50');
+  check('архив победителей: итоги и ссылка на сетку', arch.data.winners?.some((w) => w.slug === bslug && w.hasBracket === true && w.podium?.first?.name === bm.b.name) && arch.data.total >= 1, arch.data);
+  check('вкладка «Прошедшие» содержит призёров', (await anon('GET', '/tournaments?tab=past')).data.tournaments?.some((t) => t.slug === bslug && t.podium?.first?.name === bm.b.name));
+  // История команды (этап 6.2): победитель финала — 1 место, финалист — 2 место; несуществующая команда — 404
+  const slugOf = async (name) => (await anon('GET', `/teams?q=${encodeURIComponent(name)}`)).data.teams?.find((x) => x.name === name)?.slug;
+  const winSlug = await slugOf(bm.b.name), lossSlug = await slugOf(bm.a.name);
+  const hw = winSlug ? await anon('GET', `/teams/${winSlug}/history`) : null;
+  const hl = lossSlug ? await anon('GET', `/teams/${lossSlug}/history`) : null;
+  const inHist = (r) => r?.data?.history?.find((x) => x.tournament.slug === bslug);
+  check('история победителя: 1 место, победа в сетке, титул в статистике', inHist(hw)?.place === 1 && inHist(hw)?.record?.wins >= 1 && hw.data.stats.titles >= 1, hw?.data);
+  check('история финалиста: 2 место', inHist(hl)?.place === 2, hl?.data);
+  check('история несуществующей команды: 404', (await anon('GET', '/teams/no-such-team-xyz/history')).status === 404);
+  // Профиль игрока (этап 6.3): игрок из состава победителя финала видит титул; неизвестный ник — 404
+  const wReg = (await anon('GET', `/tournaments/${bslug}`)).data.tournament.podium?.first?.roster?.[0];
+  const pp = wReg ? await anon('GET', `/players/${encodeURIComponent(wReg)}`) : null;
+  const pEntry = pp?.data?.history?.find((x) => x.tournament.slug === bslug);
+  check('профиль игрока: 1 место и титул в статистике', pEntry?.place === 1 && pp.data.stats.titles >= 1, pp?.data);
+  check('профиль игрока: ник без учёта регистра', wReg && (await anon('GET', `/players/${encodeURIComponent(wReg.toUpperCase())}`)).status === 200);
+  check('профиль несуществующего игрока: 404', (await anon('GET', '/players/no_such_player_xyz')).status === 404);
   check('после финала лобби скрыто', (await pl.api('GET', `/matches/${mid2}`)).data.match.lobby === undefined);
 
   console.log('Удаление аккаунта');

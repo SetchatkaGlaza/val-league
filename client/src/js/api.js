@@ -124,6 +124,7 @@ export const teams = {
   mine: live(() => request('/teams/mine')),
   create: live((d) => send('POST', '/teams', d)),
   get: live((slug) => request(`/teams/${enc(slug)}`)),
+  history: live((slug) => request(`/teams/${enc(slug)}/history`)),
   update: live((slug, d) => send('PATCH', `/teams/${enc(slug)}`, d)),
   remove: live((slug) => send('DELETE', `/teams/${enc(slug)}`)),
   setLogo: live((slug, blob) => request(`/teams/${enc(slug)}/logo`, { method: 'PUT', body: blob, timeout: 30000 })),
@@ -134,6 +135,10 @@ export const teams = {
   setRole: live((slug, userId, role) => send('PATCH', `/teams/${enc(slug)}/members/${enc(userId)}`, { role })),
   kick: live((slug, userId) => send('DELETE', `/teams/${enc(slug)}/members/${enc(userId)}`)),
   makeCaptain: live((slug, userId) => send('POST', `/teams/${enc(slug)}/captain`, { userId })),
+};
+
+export const players = {
+  get: live((nick) => request(`/players/${enc(nick)}`)),
 };
 
 /** Приглашение — либо по ссылке ({ token }), либо персональное ({ id }). */
@@ -150,7 +155,7 @@ export const tournaments = {
   list: live((tab) => request(`/tournaments?${qs({ tab })}`)),
   next: live(() => request('/tournaments/next')),
   get: live((slug) => request(`/tournaments/${enc(slug)}`)),
-  winners: live((limit = 3) => request(`/winners?limit=${limit}`)),
+  winners: live((limit = 3, offset = 0) => request(`/winners?limit=${limit}${offset ? `&offset=${offset}` : ''}`)),
 };
 
 /** Сетка и матчи: публичные страницы (вход нужен только для «Моих матчей»). */

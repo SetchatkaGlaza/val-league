@@ -44,6 +44,7 @@ const winnersHtml = (list) => list.map((w) => `
     <h3>${esc(w.team)}</h3>
     ${w.roster.length ? `<p class="win-roster">${w.roster.map(esc).join(' · ')}</p>` : ''}
     ${w.prize ? `<p class="win-prize">Приз: ${rub(w.prize)}</p>` : ''}
+    ${w.podium?.second ? `<p class="win-sub">2 место: ${esc(w.podium.second.name)}${w.podium.thirds?.length ? ` · 3 место: ${w.podium.thirds.map((x) => esc(x.name)).join(', ')}` : ''}</p>` : ''}
   </article>`).join('');
 
 export default {
@@ -85,7 +86,7 @@ export default {
       <section class="winners" id="winBox" aria-labelledby="winTitle" data-reveal hidden>
         <h2 id="winTitle">Последние победители</h2>
         <div class="win-grid" id="winGrid"></div>
-        <a class="link" href="/tournaments?tab=past">Все прошедшие турниры →</a>
+        <a class="link" href="/winners">Весь архив победителей →</a>
       </section>
 
       <section class="partners" aria-labelledby="partTitle" data-reveal>

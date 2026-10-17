@@ -11,6 +11,7 @@ import tournamentRoutes, { winnersRoutes } from './routes/tournaments.js';
 import adminRoutes from './routes/admin.js';
 import registrationRoutes from './routes/registrations.js';
 import matchRoutes from './routes/matches.js';
+import playerRoutes from './routes/players.js';
 import { sweepExpired } from './services/registrations.js';
 import { ping } from './db/index.js';
 import { config } from './config.js';
@@ -39,6 +40,7 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/winners', winnersRoutes);
 app.use('/api/registrations', registrationRoutes);
 app.use('/api/matches', matchRoutes);
+app.use('/api/players', playerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use((_req, res) => res.status(404).json({ code: 'not_found' }));
 app.use((err, _req, res, _next) => {

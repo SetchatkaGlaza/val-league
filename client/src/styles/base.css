@@ -15,3 +15,6 @@ button, input { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 ::selection { background: var(--accent); color: #000; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+/* Атрибут hidden должен скрывать элемент, даже если у него задан display (кнопки .btn, карточки): иначе «Показать ещё» оставалась видна после загрузки всего списка */
+[hidden] { display: none !important; }

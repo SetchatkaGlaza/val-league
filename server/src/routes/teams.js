@@ -1,5 +1,6 @@
 import express, { Router } from 'express';
 import * as c from '../controllers/teams.js';
+import { history as teamHistory } from '../controllers/team-history.js';
 import { requireAuth, optionalAuth, writeLimiter } from '../middleware/auth.js';
 import { h } from '../utils/http.js';
 
@@ -11,6 +12,7 @@ router.get('/', h(c.directory));
 router.get('/mine', requireAuth, h(c.listMine));
 router.post('/', ...auth, h(c.create));
 router.get('/:slug', optionalAuth, h(c.get));
+router.get('/:slug/history', h(teamHistory));   // публичная история участия (этап 6.2)
 router.patch('/:slug', ...auth, h(c.update));
 router.delete('/:slug', ...auth, h(c.remove));
 

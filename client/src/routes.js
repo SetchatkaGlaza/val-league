@@ -9,12 +9,14 @@ import { rules, privacy } from './views/docs.js';
 import home from './views/home.js';
 import teamNew from './views/team-new.js';
 import team from './views/team.js';
+import player from './views/player.js';
 import invite from './views/invite.js';
 import tournamentsList from './views/tournaments.js';
 import tournament from './views/tournament.js';
 import bracketPage from './views/bracket.js';
 import matchPage from './views/match.js';
 import teamsList from './views/teams-list.js';
+import winnersPage from './views/winners.js';
 import adminHome from './views/admin.js';
 import adminTournament from './views/admin-tournament.js';
 import { notFound } from './views/stubs.js';
@@ -35,6 +37,7 @@ export const routes = {
   '/teams': teamsList,
   '/teams/new': teamNew,
   '/tournaments': tournamentsList,
+  '/winners': winnersPage,
   '/admin': adminHome,
   '/admin/tournaments/new': adminTournament,
   '/invite': invite,
@@ -43,6 +46,7 @@ export const routes = {
 // Адреса с параметром: [шаблон, имя параметра, страница]. Точные адреса из таблицы выше проверяются первыми.
 const dynamic = [
   [/^\/teams\/([a-z0-9-]{1,40})$/, 'slug', team],
+  [/^\/players\/([^/]{1,80})$/, 'nick', player],
   [/^\/tournaments\/([a-z0-9-]{1,40})$/, 'slug', tournament],
   [/^\/tournaments\/([a-z0-9-]{1,40})\/bracket$/, 'slug', bracketPage],
   [/^\/matches\/([0-9a-f-]{36})$/i, 'id', matchPage],

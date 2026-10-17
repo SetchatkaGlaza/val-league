@@ -3,6 +3,8 @@ import { tournaments } from '../js/api.js';
 import { ICON, esc } from './parts.js';
 import { teamLogo } from './team-parts.js';
 import { mountRegistration } from './registration-parts.js';
+import { podiumBlock } from './podium-parts.js';
+import { playerLink } from './player-link.js';
 import { rub, dateLong, formatLine, feeLine, statusBadge, slotsLine, startCountdown, countdownHtml, tournamentError, mapName } from './tournament-parts.js';
 
 const skeleton = '<div class="tm-skel" aria-busy="true"><div class="sk sk-hero"></div><div class="sk sk-card"></div><div class="sk sk-card"></div></div>';
@@ -43,7 +45,8 @@ function page(d) {
     </div>
     ${upcoming ? `<div class="t-timer"><p class="label">До старта</p>${countdownHtml(t.startsAt)}</div>` : ''}
   </section>
-  ${t.winner ? `<section class="acc-card t-winner"><p class="label">Победитель</p><h2>${esc(t.winner.name)}</h2>${t.winner.roster.length ? `<p class="win-roster">${t.winner.roster.map(esc).join(' · ')}</p>` : ''}${t.prizePlaces[0] ? `<p class="win-prize">Приз: ${rub(t.prizePlaces[0].amount)}</p>` : ''}</section>` : ''}
+  ${t.podium?.first ? `<section class="acc-card t-podium"><h2>Итоги турнира</h2>${podiumBlock(t.podium, t.prizePlaces)}${t.hasBracket ? `<div class="t-actions"><a class="btn btn-ghost btn-sm" href="/tournaments/${esc(t.slug)}/bracket">Смотреть сетку</a></div>` : ''}</section>`
+    : t.winner ? `<section class="acc-card t-winner"><p class="label">Победитель</p><h2>${esc(t.winner.name)}</h2>${t.winner.roster.length ? `<p class="win-roster">${t.winner.roster.map(playerLink).join(' · ')}</p>` : ''}${t.prizePlaces[0] ? `<p class="win-prize">Приз: ${rub(t.prizePlaces[0].amount)}</p>` : ''}</section>` : ''}
   <div class="acc-grid t-grid2">
     <section class="acc-card"><h2>Призовой фонд</h2><p class="prize">${t.prizeTotal ? rub(t.prizeTotal) : '—'}</p>${prizes(t)}</section>
     <section class="acc-card"><h2>Участие</h2><div id="regBox">${staticAction(t)}</div></section>
