@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { query, withTx } from '../db/index.js';
 import { HttpError, parse, uuid } from '../utils/http.js';
+import { record } from '../services/audit.js';
+import { isStaff } from '../services/permissions.js';
+import { rollbackBlocker } from '../services/match-tools.js';
 import { buildBracket, forfeitScore, roundName, scheduleMatches, seriesFromMaps, shuffle, validateMaps, validateScore, winnerSlot } from '../services/bracket.js';
+
+/** Состояние матча для журнала (в том числе то, что нужно для отката результата). */
+const matchView = (m) => ({ status: m.status, scoreA: m.score_a, scoreB: m.score_b, winner: m.winner, forfeit: m.forfeit, forfeitReason: m.forfeit_reason, maps: m.maps, demoUrl: m.demo_url, startsAt: m.starts_at, lobby: m.lobby });
+const matchLabel = (m, t) => `${m.name_a ?? '?'} — ${m.name_b ?? '?'} (${t.name})`;
 
 const SLUG_RE = /^[a-z0-9-]{1,40}$/;
 
@@ -66,7 +73,7 @@ export async function getMatch(req, res) {
 
   const uid = req.user?.id;
   const mySide = uid ? ((m.ids_a || []).includes(uid) ? 'a' : (m.ids_b || []).includes(uid) ? 'b' : null) : null;
-  const lobby = (req.user?.role === 'admin' || !!mySide) && m.status !== 'finished';
+  const lobby = (isStaff(req.user?.role) || !!mySide) && m.status !== 'finished';
 
   const { rows: prev } = await query(
     `${MATCH_SELECT} WHERE m.next_match_id = $1 ORDER BY m.position`, [m.id]);
@@ -186,6 +193,7 @@ export async function generate(req, res) {
           seedOf(m.a), seedOf(m.b), m.winner, m.bye, m.status,
           m.next ? mid.get(`${m.next.round}:${m.next.position}`) : null, m.next?.slot ?? null, m.bye ? new Date() : null]);
     }
+    await record(db, req, { action: 'bracket.generate', objectType: 'tournament', objectId: t.id, label: t.name, meta: { teams: ids.length, seeding: d.seeding } });
     return loadBracket(db, t.id, { lobby: true });
   });
   res.status(201).json({ ...bracket });
@@ -196,6 +204,7 @@ export async function removeBracket(req, res) {
     const t = await lockTournament(db, req.params.id);
     if (t.status !== 'upcoming') throw new HttpError(409, 'bad_state');
     await db.query('DELETE FROM matches WHERE tournament_id = $1', [t.id]);
+    await record(db, req, { action: 'bracket.remove', objectType: 'tournament', objectId: t.id, label: t.name });
   });
   res.json({ ok: true });
 }
@@ -267,6 +276,48 @@ export async function setResult(req, res) {
     }
     const { rows: [fresh] } = await db.query(`${MATCH_SELECT} WHERE m.id = $1`, [m.id]);
     const { rows: [tt] } = await db.query('SELECT status, winner_name FROM tournaments WHERE id = $1', [t.id]);
+    await record(db, req, {
+      action: 'match.result', objectType: 'match', objectId: m.id, label: matchLabel(m, t), before: matchView(m), after: matchView(fresh),
+      meta: { tournamentId: t.id, round: m.round, position: m.position, winnerName: winName, nextMatchId: m.next_match_id, tournamentFinished: !m.next_match_id },
+    });
+    return { match: serializeMatch(fresh, { lobby: true }), tournament: { status: tt.status, winner: tt.winner_name } };
+  });
+  res.json(out);
+}
+
+/**
+ * Откат результата: матч снова «готов», победитель убирается из следующего матча.
+ * Можно, пока следующий матч не начат. Откат финала возвращает турнир в «идёт». Причина обязательна, пишется в журнал.
+ */
+export async function rollbackResult(req, res) {
+  const { reason } = parse(z.object({ reason: z.string().trim().min(5).max(300) }), req.body);
+  const out = await withTx(async (db) => {
+    const mid = uuid.safeParse(req.params.id);
+    if (!mid.success) throw new HttpError(404, 'not_found');
+    const { rows: [head] } = await db.query('SELECT tournament_id FROM matches WHERE id = $1', [mid.data]);
+    if (!head) throw new HttpError(404, 'not_found');
+    const t = await lockTournament(db, head.tournament_id);
+    const { rows: [m] } = await db.query('SELECT * FROM matches WHERE id = $1 FOR UPDATE', [mid.data]);
+    const next = m.next_match_id ? (await db.query('SELECT * FROM matches WHERE id = $1 FOR UPDATE', [m.next_match_id])).rows[0] : null;
+    const blocked = rollbackBlocker({ tournamentStatus: t.status, match: m, next });
+    if (blocked) throw new HttpError(409, blocked);
+
+    await db.query(
+      `UPDATE matches SET score_a = NULL, score_b = NULL, winner = NULL, forfeit = NULL, forfeit_reason = NULL, maps = NULL,
+              status = 'ready', finished_at = NULL, updated_at = now() WHERE id = $1`, [m.id]);
+    if (next) {
+      const s = m.next_slot;
+      await db.query(
+        `UPDATE matches SET reg_${s} = NULL, name_${s} = NULL, seed_${s} = NULL, status = 'pending', score_a = NULL, score_b = NULL, winner = NULL, updated_at = now() WHERE id = $1`, [next.id]);
+    } else {          // откатили финал: турнир снова идёт, победитель неизвестен
+      await db.query(`UPDATE tournaments SET status = 'live', winner_name = NULL, winner_roster = '{}', updated_at = now() WHERE id = $1`, [t.id]);
+    }
+    const { rows: [fresh] } = await db.query(`${MATCH_SELECT} WHERE m.id = $1`, [m.id]);
+    const { rows: [tt] } = await db.query('SELECT status, winner_name FROM tournaments WHERE id = $1', [t.id]);
+    await record(db, req, {
+      action: 'match.rollback', objectType: 'match', objectId: m.id, label: matchLabel(m, t), before: matchView(m), after: matchView(fresh),
+      meta: { reason, tournamentId: t.id, round: m.round, position: m.position, nextMatchId: m.next_match_id, tournamentReopened: !m.next_match_id },
+    });
     return { match: serializeMatch(fresh, { lobby: true }), tournament: { status: tt.status, winner: tt.winner_name } };
   });
   res.json(out);
@@ -297,6 +348,7 @@ export async function patchMatch(req, res) {
     }
     if (sets.length) await db.query(`UPDATE matches SET ${sets.join(', ')}, updated_at = now() WHERE id = $1`, vals);
     const { rows: [fresh] } = await db.query(`${MATCH_SELECT} WHERE m.id = $1`, [m.id]);
+    if (sets.length) await record(db, req, { action: 'match.update', objectType: 'match', objectId: m.id, label: matchLabel(m, t), before: matchView(m), after: matchView(fresh), diff: true, meta: { tournamentId: t.id } });
     return { match: serializeMatch(fresh, { lobby: true }) };
   });
   res.json(out);
@@ -316,6 +368,7 @@ export async function schedule(req, res) {
     const plan = scheduleMatches(
       rows.map((r) => ({ id: r.id, round: r.round, position: r.position, bye: r.bye, status: r.status, startsAt: r.starts_at })), d);
     for (const p of plan) await db.query('UPDATE matches SET starts_at = $2, updated_at = now() WHERE id = $1', [p.id, p.startsAt]);
+    await record(db, req, { action: 'bracket.schedule', objectType: 'tournament', objectId: t.id, label: t.name, meta: { scheduled: plan.length, start: d.start, intervalMin: d.intervalMin, parallel: d.parallel, rounds: d.rounds, overwrite: d.overwrite } });
     return { scheduled: plan.length, ...(await loadBracket(db, t.id, { lobby: true })) };
   });
   res.json(out);

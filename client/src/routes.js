@@ -20,6 +20,12 @@ import winnersPage from './views/winners.js';
 import ratingPage from './views/rating.js';
 import adminHome from './views/admin.js';
 import adminTournament from './views/admin-tournament.js';
+import adminAudit from './views/admin-audit.js';
+import adminSettings from './views/admin-settings.js';
+import adminUsers from './views/admin-users.js';
+import adminUser from './views/admin-user.js';
+import adminTeams from './views/admin-teams.js';
+import adminTeam from './views/admin-team.js';
 import { notFound } from './views/stubs.js';
 
 // Новая страница: файл в src/views + строка здесь. Все страницы входят в один бандл,
@@ -41,6 +47,10 @@ export const routes = {
   '/winners': winnersPage,
   '/rating': ratingPage,
   '/admin': adminHome,
+  '/admin/users': adminUsers,
+  '/admin/teams': adminTeams,
+  '/admin/audit': adminAudit,
+  '/admin/settings': adminSettings,
   '/admin/tournaments/new': adminTournament,
   '/invite': invite,
 };
@@ -53,6 +63,8 @@ const dynamic = [
   [/^\/tournaments\/([a-z0-9-]{1,40})\/bracket$/, 'slug', bracketPage],
   [/^\/matches\/([0-9a-f-]{36})$/i, 'id', matchPage],
   [/^\/admin\/tournaments\/([0-9a-f-]{36})$/i, 'id', adminTournament],
+  [/^\/admin\/users\/([0-9a-f-]{36})$/i, 'id', adminUser],
+  [/^\/admin\/teams\/([0-9a-f-]{36})$/i, 'id', adminTeam],
 ];
 
 export function resolve(path) {

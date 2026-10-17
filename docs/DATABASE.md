@@ -65,6 +65,8 @@ const { rows } = await query('SELECT id, nick FROM users WHERE email = $1', [ema
 
 - `matches` — матчи сетки Single Elimination: участники (заявки), счёт, победитель, связь со следующим матчем, расписание, лобби. Подробно: `docs/BRACKET.md`.
 
+- `settings` — настройки сайта (ключ → значение jsonb): контакты, соцсети, баннер, формула рейтинга. Недостающие ключи берутся из значений по умолчанию (`services/settings.js`). Подробно: `docs/ADMIN.md`.
+
 Дальше схема растёт по этапам ТЗ: новости, рейтинг, outbox уведомлений (см. `docs/telegram/ARCHITECTURE.md`). Новые таблицы добавляйте в `schema.sql` с `CREATE TABLE IF NOT EXISTS`; когда понадобятся изменения существующих таблиц, перейдите на миграции (например, `node-pg-migrate`).
 
 ## Бэкапы

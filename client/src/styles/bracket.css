@@ -145,3 +145,12 @@ a.bk-m:hover, a.bk-m:focus-visible { border-color: rgba(244,17,44,.6); transform
 .mp-s .w { color: var(--accent); }
 .mp-demo { min-width: 44px; text-align: right; font-size: .88rem; }
 @media (max-width: 420px) { .mp-row { grid-template-columns: 20px minmax(0, 1fr) auto; } .mp-demo { grid-column: 2 / -1; text-align: left; } .mp-demo:empty { display: none; } }
+
+/* ---------- Этап 8.3c: заметки, история, откат ---------- */
+.bm-panel { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); max-width: 560px; min-width: 0; }
+.bn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.bn-list li { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; min-width: 0; overflow-wrap: anywhere; }
+.bn-list p { margin: 0; white-space: pre-wrap; }
+.bn-list small { color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.bk-notes { display: grid; gap: 10px; margin-top: 18px; }
+.bk-notes .bm-round { margin: 0; }

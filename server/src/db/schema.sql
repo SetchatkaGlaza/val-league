@@ -169,3 +169,75 @@ CREATE INDEX IF NOT EXISTS matches_reg_b_idx ON matches (reg_b);
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS forfeit        text CHECK (forfeit IN ('a', 'b'));
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS forfeit_reason text CHECK (forfeit_reason IN ('tech', 'noshow'));
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS maps           jsonb;
+
+-- ---------- Этап 8.1: роли и журнал действий ----------
+-- Роли: player (обычный игрок, «user» из ТЗ), moderator (заявки, результаты матчей), admin (всё).
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('player', 'moderator', 'admin'));
+
+-- Журнал действий админки. Только дописывается: UPDATE, DELETE и TRUNCATE запрещены триггерами.
+-- Нет внешних ключей на users: удаление аккаунта не должно менять журнал, поэтому ник и роль сохраняются снимком.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id           bigserial PRIMARY KEY,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  actor_id     uuid,
+  actor_nick   text NOT NULL,
+  actor_role   text NOT NULL,
+  action       text NOT NULL,                 -- например tournament.status, registration.confirm, match.result
+  object_type  text NOT NULL,                 -- tournament | registration | match | user | team | setting
+  object_id    text,
+  object_label text,                          -- понятное имя объекта на момент действия
+  before       jsonb,
+  after        jsonb,
+  meta         jsonb,                         -- причина, примечания
+  ip           text
+);
+CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log (id DESC);
+CREATE INDEX IF NOT EXISTS audit_log_actor_idx ON audit_log (actor_id, id DESC);
+CREATE INDEX IF NOT EXISTS audit_log_action_idx ON audit_log (action, id DESC);
+CREATE INDEX IF NOT EXISTS audit_log_object_idx ON audit_log (object_type, object_id, id DESC);
+
+CREATE OR REPLACE FUNCTION audit_log_immutable() RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'Журнал действий нельзя изменять или удалять';
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS audit_log_no_change ON audit_log;
+CREATE TRIGGER audit_log_no_change BEFORE UPDATE OR DELETE ON audit_log FOR EACH ROW EXECUTE FUNCTION audit_log_immutable();
+DROP TRIGGER IF EXISTS audit_log_no_truncate ON audit_log;
+CREATE TRIGGER audit_log_no_truncate BEFORE TRUNCATE ON audit_log FOR EACH STATEMENT EXECUTE FUNCTION audit_log_immutable();
+
+-- ---------- Этап 8.2: пользователи ----------
+-- Блокировка: причина, необязательный срок, кто и когда заблокировал. Срок истёк — блокировку снимает сервер (middleware/auth.js).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_until  timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_at     timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_by     uuid REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS users_blocked_until_idx ON users (blocked_until) WHERE blocked;
+CREATE INDEX IF NOT EXISTS users_role_idx ON users (role) WHERE role <> 'player';
+
+-- ---------- Этап 8.3c: внутренние заметки к турнирам и матчам ----------
+-- Видны только модераторам и админам. Заметку нельзя править (только добавить новую); удалить может админ, удаление пишется в журнал.
+-- match_id обнуляется, если сетку сформировали заново, а подпись матча (match_label) остаётся.
+CREATE TABLE IF NOT EXISTS admin_notes (
+  id             bigserial PRIMARY KEY,
+  tournament_id  uuid NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  match_id       uuid REFERENCES matches(id) ON DELETE SET NULL,
+  match_label    text,
+  body           text NOT NULL CHECK (char_length(body) BETWEEN 1 AND 1000),
+  author_id      uuid REFERENCES users(id) ON DELETE SET NULL,
+  author_nick    text NOT NULL,
+  author_role    text NOT NULL,
+  created_at     timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS admin_notes_tournament_idx ON admin_notes (tournament_id, id DESC);
+CREATE INDEX IF NOT EXISTS admin_notes_match_idx ON admin_notes (match_id) WHERE match_id IS NOT NULL;
+
+-- ---------- Этап 8.4: настройки сайта ----------
+-- Ключ → значение (jsonb): контактная почта, соцсети, баннер, формула рейтинга. Недостающие ключи берутся из значений по умолчанию (services/settings.js).
+CREATE TABLE IF NOT EXISTS settings (
+  key         text PRIMARY KEY,
+  value       jsonb NOT NULL,
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  updated_by  uuid REFERENCES users(id) ON DELETE SET NULL
+);

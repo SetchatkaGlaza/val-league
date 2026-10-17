@@ -40,13 +40,31 @@ export const cookieOptions = { httpOnly: true, sameSite: 'lax', secure: config.i
 /** Сессия недействительна, если пароль меняли после её выдачи (смена или сброс пароля завершает все старые сессии). */
 const sessionStale = (user, iat) => !!user.password_changed_at && Math.floor(user.password_changed_at.getTime() / 1000) > iat;
 
+/**
+ * Временные блокировки (этап 8.2): когда срок истёк, снимаем блокировку.
+ * Запускается лениво, при первом запросе с проверкой входа, и дальше раз в минуту; кроме того, истёкшая блокировка снимается на лету у самого пользователя.
+ */
+const UNBLOCK_SQL = `UPDATE users SET blocked = false, blocked_reason = NULL, blocked_until = NULL, blocked_at = NULL, blocked_by = NULL
+                      WHERE blocked AND blocked_until IS NOT NULL AND blocked_until <= now()`;
+let sweeper = null;
+export async function expireBlocks() { try { await query(UNBLOCK_SQL); } catch (e) { console.error('expireBlocks:', e.message); } }
+function ensureSweeper() {
+  if (sweeper) return;
+  sweeper = setInterval(expireBlocks, 60_000);
+  sweeper.unref();
+  expireBlocks();
+}
+const blockOver = (u) => u.blocked && u.blocked_until && new Date(u.blocked_until) <= new Date();
+
 /** Достаёт пользователя из cookie. Блокировка действует сразу: пользователь каждый раз читается из БД. */
 export async function requireAuth(req, res, next) {
   try {
+    ensureSweeper();
     const raw = req.cookies?.[config.cookieName];
     if (!raw) return res.status(401).json({ code: 'unauthorized' });
     const { sub, iat } = jwt.verify(raw, config.jwtSecret);
     const { rows } = await query('SELECT * FROM users WHERE id = $1', [sub]);
+    if (rows[0] && blockOver(rows[0])) { await expireBlocks(); rows[0].blocked = false; }
     if (!rows[0] || rows[0].blocked || sessionStale(rows[0], iat)) {
       res.clearCookie(config.cookieName, cookieOptions);
       return res.status(401).json({ code: 'unauthorized' });
@@ -62,19 +80,30 @@ export async function requireAuth(req, res, next) {
   }
 }
 
-/** Только администраторы. Ставить после requireAuth. */
-export function requireAdmin(req, res, next) {
-  if (req.user?.role !== 'admin') return res.status(403).json({ code: 'forbidden' });
-  next();
+/**
+ * Проверка роли — единственное место, где сервер решает, пускать ли в админку. Ставить после requireAuth.
+ * requireRole('admin') — только админ; requireRole('moderator', 'admin') — любой сотрудник.
+ * Список ролей сохраняется в fn.roles: тест проверяет, что у каждого админского маршрута есть такая защита.
+ */
+export function requireRole(...roles) {
+  const guard = (req, res, next) => {
+    if (!roles.includes(req.user?.role)) return res.status(403).json({ code: 'forbidden' });
+    next();
+  };
+  guard.roles = roles;
+  return guard;
 }
+export const requireAdmin = requireRole('admin');
 
 /** Для публичных страниц, которым нужно знать, кто смотрит (капитан видит больше). Без входа просто идёт дальше. */
 export async function optionalAuth(req, _res, next) {
   try {
+    ensureSweeper();
     const raw = req.cookies?.[config.cookieName];
     if (raw) {
       const { sub, iat } = jwt.verify(raw, config.jwtSecret);
       const { rows } = await query('SELECT * FROM users WHERE id = $1', [sub]);
+      if (rows[0] && blockOver(rows[0])) { await expireBlocks(); rows[0].blocked = false; }
       if (rows[0] && !rows[0].blocked && !sessionStale(rows[0], iat)) req.user = rows[0];
     }
   } catch (e) {

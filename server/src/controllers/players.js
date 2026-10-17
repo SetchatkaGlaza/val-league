@@ -1,7 +1,9 @@
 import { query } from '../db/index.js';
 import { HttpError } from '../utils/http.js';
 import { buildPlayerProfile } from '../services/player-profile.js';
-import { buildRating, findInRating, POINTS } from '../services/rating.js';
+import { buildRating, findInRating } from '../services/rating.js';
+import { loadSettings } from './settings.js';
+import { ratingPoints } from '../services/settings.js';
 
 /**
  * GET /api/players/:nick — публичный профиль игрока: участие и результаты в завершённых турнирах.
@@ -43,10 +45,13 @@ export async function get(req, res) {
 }
 
 // Рейтинг считается по всем завершённым турнирам; результат держим минуту, чтобы страница не нагружала базу.
-let cache = { at: 0, list: null };
+let cache = { at: 0, list: null, points: null };
+/** Сбросить кэш рейтинга (после смены формулы или по кнопке «Пересчитать»). */
+export const resetRatingCache = () => { cache = { at: 0, list: null, points: null }; };
 
 async function loadRating() {
   if (cache.list && Date.now() - cache.at < 60_000) return cache.list;
+  const points = ratingPoints(await loadSettings());   // формула — из настроек сайта (админка → Настройки)
   const { rows: regs } = await query(
     `SELECT r.id, r.tournament_id, r.team_name, r.roster
        FROM tournament_registrations r JOIN tournaments t ON t.id = r.tournament_id
@@ -60,7 +65,7 @@ async function loadRating() {
       'SELECT tournament_id, round, reg_a, reg_b, winner, status, bye FROM matches WHERE tournament_id = ANY($1::uuid[])', [ids]);
     const matchesByT = new Map();
     for (const m of ms) matchesByT.set(m.tournament_id, [...(matchesByT.get(m.tournament_id) || []), m]);
-    list = buildRating({ regs, tournaments: new Map(ts.map((t) => [t.id, t])), matchesByT });
+    list = buildRating({ regs, tournaments: new Map(ts.map((t) => [t.id, t])), matchesByT, points });
     // Оставляем только игроков, чей ник сейчас есть среди аккаунтов (ник мог смениться, аккаунт — удалиться);
     // ник берём как в аккаунте, чтобы ссылка на профиль открывалась.
     const { rows: users } = await query('SELECT nick FROM users WHERE lower(nick) = ANY($1::text[])', [list.map((r) => r.nick.toLowerCase())]);
@@ -69,14 +74,17 @@ async function loadRating() {
     let rank = 0;
     list.forEach((r, i) => { if (i === 0 || r.points !== list[i - 1].points) rank = i + 1; r.rank = rank; });
   }
-  cache = { at: Date.now(), list };
+  cache = { at: Date.now(), list, points };
   return list;
 }
+
+/** Сколько игроков сейчас в рейтинге (для кнопки пересчёта в админке). */
+export const ratingTotal = async () => (await loadRating()).length;
 
 /** GET /api/players?limit=&offset= — публичный рейтинг игроков. */
 export async function rating(req, res) {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   const list = await loadRating();
-  res.json({ players: list.slice(offset, offset + limit), total: list.length, points: POINTS });
+  res.json({ players: list.slice(offset, offset + limit), total: list.length, points: cache.points });
 }

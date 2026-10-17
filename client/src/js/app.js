@@ -38,7 +38,9 @@ async function onRoute(view, ctx) {   // view можно подменить на
   // (вместе с ?token=… — иначе приглашение по ссылке потеряется после входа)
   if (view.protected && !getUser()) { router.navigate(`/login?next=${encodeURIComponent(ctx.path + (ctx.query.toString() ? `?${ctx.query}` : ''))}`, { replace: true }); return 'aborted'; }
   // Админка: не администратору показываем «не найдено» (сервер всё равно проверяет права сам)
-  if (view.admin && getUser()?.role !== 'admin') view = notFound;
+  const role = getUser()?.role;
+  if (view.admin && !['admin', 'moderator'].includes(role)) view = notFound;
+  if (view.adminOnly && role !== 'admin') view = notFound;   // разделы только для администратора (журнал)
   const sameLayout = layoutName === view.layout;
   const first = !layout;
 
@@ -78,6 +80,11 @@ async function onRoute(view, ctx) {   // view можно подменить на
     ctx.applyScroll();
     enterFields(layout.slot, .08);
   } else {
+    // Контейнер страницы остаётся тем же, а обработчики прошлых страниц на нём копились (двойные вопросы «Заблокировать?»).
+    // Заменяем его пустой копией: обработчики не копируются, id и классы сохраняются.
+    const fresh = layout.slot.cloneNode(false);
+    layout.slot.replaceWith(fresh);
+    layout.slot = fresh;
     layout.slot.innerHTML = view.render(ctx);
     ctx.applyScroll();
     updateNav(ctx.path);

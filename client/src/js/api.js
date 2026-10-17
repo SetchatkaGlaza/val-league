@@ -27,6 +27,21 @@ async function request(path, { method = 'GET', body, timeout = 12000 } = {}) {
   } finally { clearTimeout(timer); }
 }
 
+/** Скачивание файла (CSV): тот же вход по cookie, ответ — Blob. Ошибки приходят как JSON. */
+async function download(path, timeout = 30000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const res = await fetch(BASE + path, { credentials: 'include', signal: ctrl.signal });
+    if (!res.ok) { const data = await res.json().catch(() => ({})); throw new ApiError(res.status, data.code || 'error', data.message || '', data.field, data.details); }
+    const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'export.csv';
+    return { blob: await res.blob(), name };
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    throw new ApiError(0, e.name === 'AbortError' ? 'timeout' : 'network', '');
+  } finally { clearTimeout(timer); }
+}
+
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const post = (path, data, mock) => (MOCK ? mock(data) : request(path, { method: 'POST', body: data }));
 
@@ -137,6 +152,9 @@ export const teams = {
   makeCaptain: live((slug, userId) => send('POST', `/teams/${enc(slug)}/captain`, { userId })),
 };
 
+/** Публичные настройки сайта: контакты, соцсети, баннер (этап 8.4). */
+export const siteSettings = live(() => request('/settings'));
+
 export const players = {
   get: live((nick) => request(`/players/${enc(nick)}`)),
   rating: live((limit = 20, offset = 0) => request(`/players?limit=${limit}&offset=${offset}`)),
@@ -180,12 +198,35 @@ export const teamsDirectory = live((q, offset = 0) => request(`/teams?${qs({ q, 
 
 export const admin = {
   dashboard: live(() => request('/admin/dashboard')),
+  audit: live((f = {}) => request(`/admin/audit?${qs(f)}`)),
+  settings: live(() => request('/admin/settings')),
+  saveSettings: live((d) => send('PATCH', '/admin/settings', d)),
+  recalcRating: live(() => send('POST', '/admin/settings/rating-recalc', {})),
+  users: live((f = {}) => request(`/admin/users?${qs(f)}`)),
+  user: live((id) => request(`/admin/users/${enc(id)}`)),
+  blockUser: live((id, d) => send('POST', `/admin/users/${enc(id)}/block`, d)),
+  unblockUser: live((id, d = {}) => send('POST', `/admin/users/${enc(id)}/unblock`, d)),
+  setUserRole: live((id, d) => send('POST', `/admin/users/${enc(id)}/role`, d)),
+  verifyUserEmail: live((id) => send('POST', `/admin/users/${enc(id)}/verify-email`, {})),
+  resetUserSteam: live((id) => send('POST', `/admin/users/${enc(id)}/reset-steam`, {})),
+  resetUserTelegram: live((id) => send('POST', `/admin/users/${enc(id)}/reset-telegram`, {})),
+  renameUser: live((id, d) => send('POST', `/admin/users/${enc(id)}/nick`, d)),
+  teams: live((f = {}) => request(`/admin/teams?${qs(f)}`)),
+  team: live((id) => request(`/admin/teams/${enc(id)}`)),
+  removeTeamLogo: live((id, d) => send('POST', `/admin/teams/${enc(id)}/remove-logo`, d)),
+  clearTeamDescription: live((id, d) => send('POST', `/admin/teams/${enc(id)}/clear-description`, d)),
+  renameTeam: live((id, d) => send('POST', `/admin/teams/${enc(id)}/rename`, d)),
+  disbandTeam: live((id, d) => send('POST', `/admin/teams/${enc(id)}/disband`, d)),
   list: live(() => request('/admin/tournaments')),
   get: live((id) => request(`/admin/tournaments/${enc(id)}`)),
   create: live((d) => send('POST', '/admin/tournaments', d)),
   update: live((id, d) => send('PATCH', `/admin/tournaments/${enc(id)}`, d)),
   setStatus: live((id, d) => send('POST', `/admin/tournaments/${enc(id)}/status`, d)),
   remove: live((id) => send('DELETE', `/admin/tournaments/${enc(id)}`)),
+  duplicate: live((id, d) => send('POST', `/admin/tournaments/${enc(id)}/duplicate`, d)),
+  cancelTournament: live((id, d) => send('POST', `/admin/tournaments/${enc(id)}/cancel`, d)),
+  exportCsv: live((id, kind) => download(`/admin/tournaments/${enc(id)}/export?kind=${enc(kind)}`)),
+  refundedAll: live((id) => send('POST', `/admin/tournaments/${enc(id)}/refunds-done`, {})),
   registrations: live((id) => request(`/admin/tournaments/${enc(id)}/registrations`)),
   confirm: live((id, note) => send('POST', `/admin/registrations/${enc(id)}/confirm`, note ? { note } : {})),
   cancelReg: live((id, note) => send('POST', `/admin/registrations/${enc(id)}/cancel`, note ? { note } : {})),
@@ -195,6 +236,11 @@ export const admin = {
   generateBracket: live((id, d) => send('POST', `/admin/tournaments/${enc(id)}/bracket`, d)),
   removeBracket: live((id) => send('DELETE', `/admin/tournaments/${enc(id)}/bracket`)),
   setResult: live((id, d) => send('PUT', `/admin/matches/${enc(id)}/result`, d)),
+  rollbackMatch: live((id, d) => send('POST', `/admin/matches/${enc(id)}/rollback`, d)),
+  matchHistory: live((id) => request(`/admin/matches/${enc(id)}/history`)),
+  notes: live((tid) => request(`/admin/tournaments/${enc(tid)}/notes`)),
+  addNote: live((tid, d) => send('POST', `/admin/tournaments/${enc(tid)}/notes`, d)),
+  removeNote: live((id) => send('DELETE', `/admin/notes/${enc(id)}`)),
   patchMatch: live((id, d) => send('PATCH', `/admin/matches/${enc(id)}`, d)),
   scheduleBracket: live((id, d) => send('POST', `/admin/tournaments/${enc(id)}/schedule`, d)),
 };

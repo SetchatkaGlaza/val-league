@@ -1,5 +1,6 @@
 import { gsap, motion, $, $$, tween } from './ui.js';
 import { getUser } from './session.js';
+import { loadSite, applySite } from './site.js';
 import shield from '../assets/logo-shield.png';
 import logoHeader from '../assets/logo-header.png';
 
@@ -31,6 +32,7 @@ const BURGER = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stro
 
 const DOC = `
 <div class="layout layout-doc">
+  <div class="site-banner" id="siteBanner" role="status" hidden></div>
   <header class="doc-top">
     <a href="/" class="doc-logo" aria-label="На главную"><img src="${logoHeader}" alt="VAL" width="120" /></a>
     <button type="button" class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="docNav" aria-label="Открыть меню">${BURGER}</button>
@@ -45,7 +47,7 @@ const DOC = `
     </nav>
   </header>
   <div id="slot" class="doc-slot"></div>
-  <footer class="doc-foot">© <span id="year"></span> VOLOGDA AMATEUR LEAGUE · <a href="/tournaments">Турниры</a> · <a href="/teams">Команды</a> · <a href="/winners">Победители</a> · <a href="/rating">Рейтинг</a> · <a href="/rules">Регламент</a> · <a href="/privacy">Конфиденциальность</a></footer>
+  <footer class="doc-foot">© <span id="year"></span> VOLOGDA AMATEUR LEAGUE · <a href="/tournaments">Турниры</a> · <a href="/teams">Команды</a> · <a href="/winners">Победители</a> · <a href="/rating">Рейтинг</a> · <a href="/rules">Регламент</a> · <a href="/privacy">Конфиденциальность</a><p class="foot-contacts" id="footContacts" hidden></p></footer>
 </div>`;
 
 function make(html) {
@@ -74,6 +76,7 @@ export const layouts = {
     create() {
       const el = make(DOC);
       $('#year', el).textContent = new Date().getFullYear();
+      loadSite().then((s) => applySite(el, s));
       $('#navToggle', el).addEventListener('click', () => setMenu(el, !$('#docNav', el).classList.contains('open')));
       return { el, slot: $('#slot', el) };
     },
@@ -104,7 +107,7 @@ export function updateNav(path) {
   });
   const me = $('.doc-login'), user = getUser(), adm = $('.doc-admin');
   if (me) { me.textContent = user ? user.nick : 'Войти'; me.setAttribute('href', user ? '/account' : '/login'); }
-  if (adm) adm.hidden = user?.role !== 'admin';
+  if (adm) adm.hidden = !['admin', 'moderator'].includes(user?.role);
   closeMenu();
 }
 

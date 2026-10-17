@@ -5,6 +5,7 @@ import { flash } from './team-parts.js';
 import { statusBadge, tournamentError, rub, mapName, dateShort } from './tournament-parts.js';
 import { regBadge, regStatusText, CANCEL_REASON } from './registration-parts.js';
 import { mountAdminBracket } from './admin-bracket.js';
+import { isAdmin, myRole } from './admin-nav.js';
 
 // Карты CS2 — тот же список, что в server/src/config.js (maps).
 const MAPS = ['de_ancient', 'de_anubis', 'de_dust2', 'de_inferno', 'de_mirage', 'de_nuke', 'de_overpass', 'de_train', 'de_vertigo'];
@@ -12,8 +13,8 @@ const EDITABLE = ['draft', 'upcoming'];
 const BRACKET_STATUSES = ['upcoming', 'live', 'finished'];   // в этих статусах у турнира есть раздел «Сетка и матчи»
 const FLOW = {
   draft: [['upcoming', 'Опубликовать', 'primary']],
-  upcoming: [['live', 'Начать турнир', 'primary'], ['draft', 'Вернуть в черновик', 'ghost'], ['cancelled', 'Отменить турнир', 'danger']],
-  live: [['finished', 'Завершить турнир', 'primary'], ['cancelled', 'Отменить турнир', 'danger']],
+  upcoming: [['live', 'Начать турнир', 'primary'], ['draft', 'Вернуть в черновик', 'ghost']],
+  live: [['finished', 'Завершить турнир', 'primary']],
   finished: [],
   cancelled: [['upcoming', 'Восстановить в анонс', 'primary'], ['draft', 'В черновик', 'ghost']],
 };
@@ -21,9 +22,10 @@ const CONFIRM = {
   upcoming: 'Опубликовать турнир? Он станет виден всем на странице «Турниры».',
   live: 'Начать турнир? Регистрация закроется, часть полей перестанет редактироваться.',
   draft: 'Вернуть турнир в черновик? Он исчезнет с публичных страниц.',
-  cancelled: 'Отменить турнир? Участники увидят, что он отменён.',
 };
 
+/** Название копии — то же правило, что copyName на сервере (services/tournament-tools.js). */
+const copyTitle = (name) => { const b = name.trim().replace(/\s+/g, ' '); return b.length + 9 <= 60 ? `${b} (копия)` : `${b.slice(0, 51).trimEnd()} (копия)`; };
 const pad = (n) => String(n).padStart(2, '0');
 const toLocal = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 /** По умолчанию: ближайшая суббота 19:00, не раньше чем через неделю. */
@@ -84,21 +86,34 @@ function formHtml(t, isNew) {
   </form>`;
 }
 
-function statusPanel(t) {
-  const acts = FLOW[t.status];
+function statusPanel(t, canManage = true) {
+  const acts = canManage ? FLOW[t.status] : [];
   return `
   <section class="acc-card adm-status">
     <div class="adm-status-top"><h2>Статус</h2>${statusBadge(t)}${t.status !== 'draft' ? `<a class="link" href="/tournaments/${esc(t.slug)}">Открыть страницу →</a>` : ''}</div>
     <p class="acc-sub">${{ draft: 'Черновик виден только администраторам.', upcoming: 'Турнир опубликован: виден на странице «Турниры».', live: 'Турнир идёт.', finished: 'Турнир завершён. Изменить его нельзя.', cancelled: 'Турнир отменён.' }[t.status]}</p>
     ${t.winner ? `<p class="acc-sub">Победитель: <b>${esc(t.winner.name)}</b>${t.winner.roster.length ? ` (${t.winner.roster.map(esc).join(', ')})` : ''}</p>` : ''}
     <div class="tg-actions">${acts.map(([to, label, kind]) => `<button type="button" class="btn ${kind === 'primary' ? 'btn-primary' : kind === 'danger' ? 'btn-danger' : 'btn-ghost'} btn-sm" data-act="status" data-to="${to}">${label}</button>`).join('')}
-      ${['draft', 'cancelled'].includes(t.status) ? '<button type="button" class="btn btn-danger btn-sm" data-act="delete">Удалить навсегда</button>' : ''}</div>
-    <form class="finish-panel" id="finishForm" hidden novalidate>
+      ${canManage && ['upcoming', 'live'].includes(t.status) ? '<button type="button" class="btn btn-danger btn-sm" data-act="cancel-open">Отменить турнир</button>' : ''}
+      ${canManage ? '<button type="button" class="btn btn-ghost btn-sm" data-act="dup-open">Дублировать</button>' : ''}
+      ${canManage && ['draft', 'cancelled'].includes(t.status) ? '<button type="button" class="btn btn-danger btn-sm" data-act="delete">Удалить навсегда</button>' : ''}</div>
+    ${canManage ? `<form class="finish-panel" id="cancelForm" hidden novalidate>
+      <p class="acc-sub" id="cancelInfo"></p>
+      <div class="field"><label for="cReason">Причина отмены (от 5 символов)</label><div class="control"><input id="cReason" type="text" maxlength="300" autocomplete="off" /></div><p class="err" id="cReason-err" role="alert"></p></div>
+      <div class="tg-actions"><button type="submit" class="btn btn-danger btn-sm"><span class="label">Отменить турнир</span><span class="spinner" aria-hidden="true"></span></button><button type="button" class="btn btn-ghost btn-sm" data-act="cancel-close">Не отменять</button></div>
+    </form>
+    <form class="finish-panel" id="dupForm" hidden novalidate>
+      <p class="acc-sub">Копия станет черновиком: настройки, призовые и пул карт переносятся, заявки, сетка и победитель — нет.</p>
+      <div class="field"><label for="dDate">Дата и время начала копии</label><div class="control"><input id="dDate" type="datetime-local" /></div><p class="err" id="dDate-err" role="alert"></p></div>
+      <div class="field"><label for="dName">Название (пусто — «${esc(copyTitle(t.name))}»)</label><div class="control"><input id="dName" type="text" maxlength="60" autocomplete="off" /></div><p class="err" id="dName-err" role="alert"></p></div>
+      <div class="tg-actions"><button type="submit" class="btn btn-primary btn-sm"><span class="label">Создать копию</span><span class="spinner" aria-hidden="true"></span></button><button type="button" class="btn btn-ghost btn-sm" data-act="dup-close">Отмена</button></div>
+    </form>` : ''}
+    ${canManage ? `<form class="finish-panel" id="finishForm" hidden novalidate>
       <p class="acc-sub">Укажите победителя — он появится на главной и в архиве. Можно оставить пустым и заполнить позже.</p>
       <div class="field"><label for="wName">Команда-победитель</label><div class="control"><input id="wName" type="text" maxlength="40" autocomplete="off" /></div></div>
       <div class="field"><label for="wRoster">Состав (через запятую, до 7 ников)</label><div class="control"><input id="wRoster" type="text" maxlength="160" autocomplete="off" /></div><p class="err" id="wRoster-err" role="alert"></p></div>
       <div class="tg-actions"><button type="submit" class="btn btn-primary btn-sm"><span class="label">Завершить турнир</span><span class="spinner" aria-hidden="true"></span></button><button type="button" class="btn btn-ghost btn-sm" data-act="finish-cancel">Отмена</button></div>
-    </form>
+    </form>` : ''}
   </section>`;
 }
 
@@ -117,7 +132,7 @@ function regsSection(list, t) {
   ].join('');
   return `
   <section class="acc-card" id="regsCard"><h2>Заявки команд</h2><p class="acc-sub">${summary}</p>
-    <div class="tbl-wrap"><table class="tbl regs"><thead><tr><th>Команда</th><th>Состав</th><th>Статус</th><th>Оплата</th><th>Подана</th><th><span class="sr-only">Действия</span></th></tr></thead><tbody>
+    <div class="tbl-wrap"><table class="tbl regs" aria-label="Заявки на турнир"><thead><tr><th scope="col">Команда</th><th scope="col">Состав</th><th scope="col">Статус</th><th scope="col">Оплата</th><th scope="col">Подана</th><th scope="col"><span class="sr-only">Действия</span></th></tr></thead><tbody>
     ${list.map((r) => `<tr class="${r.status === 'cancelled' ? 'dim' : ''}">
       <td data-l="Команда"><b>${r.team.slug ? `<a class="link" href="/teams/${esc(r.team.slug)}">${esc(r.team.name)}</a>` : esc(r.team.name)}</b></td>
       <td data-l="Состав">${r.roster.map((p) => esc(p.nick)).join(', ')}</td>
@@ -126,6 +141,11 @@ function regsSection(list, t) {
       <td data-l="Подана">${when(r.createdAt)}</td>
       <td class="tbl-act">${actions(r)}</td></tr>`).join('')}
     </tbody></table></div>
+    <div class="tg-actions" id="regTools">
+      <button type="button" class="btn btn-ghost btn-sm" data-ract="export" data-kind="registrations">Скачать заявки (CSV)</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-ract="export" data-kind="participants">Скачать участников (CSV)</button>
+      ${refunds ? `<button type="button" class="btn btn-ghost btn-sm" data-ract="refunded-all" data-n="${refunds}" data-sum="${list.filter((r) => r.refundDue).reduce((a, r) => a + r.fee, 0)}">Отметить все возвраты выполненными (${refunds})</button>` : ''}
+    </div>
     <p class="hint-mut">Подтверждайте оплату после того, как перевод с кодом платежа пришёл. Статус игроки видят на странице турнира и в кабинете.</p>
   </section>`;
 }
@@ -146,7 +166,7 @@ export default {
     </main>`,
 
   mount(root, { params, navigate }) {
-    const isNew = !params.id;
+    const isNew = !params.id, canManage = isAdmin(myRole());
     let alive = true, t = null, dirty = false, toastTimer = 0, note = flash.take(), regs = [], bk = null;
     const body = $('#aBody', root), toast = $('#toast', root);
 
@@ -171,14 +191,13 @@ export default {
 
     function paint() {
       if (bk) { bk.stop(); bk = null; }
-      body.innerHTML = `${note ? `<div class="banner ok" role="status">${esc(note)}</div>` : ''}${isNew ? '' : `<div id="statusSlot">${statusPanel(t)}</div>`}${isNew ? '' : '<div id="regsSlot"><div class="sk sk-card"></div></div>'}${isNew || !BRACKET_STATUSES.includes(t.status) ? '' : '<div id="bracketSlot"></div>'}${formHtml(t, isNew)}`;
+      body.innerHTML = `${note ? `<div class="banner ok" role="status">${esc(note)}</div>` : ''}${isNew ? '' : `<div id="statusSlot">${statusPanel(t, canManage)}</div>`}${isNew ? '' : '<div id="regsSlot"><div class="sk sk-card"></div></div>'}${isNew || !BRACKET_STATUSES.includes(t.status) ? '' : '<div id="bracketSlot"></div>'}${canManage ? formHtml(t, isNew) : '<div class="banner ok" role="status">Вы модератор: заявки и результаты матчей доступны, а настройки и статус турнира меняет администратор.</div>'}`;
       if (!isNew) loadRegs();
-      if ($('#bracketSlot', root)) bk = mountAdminBracket($('#bracketSlot', root), t, { say, onTournament: refreshTournament });
+      if ($('#bracketSlot', root)) bk = mountAdminBracket($('#bracketSlot', root), t, { say, onTournament: refreshTournament, canManage });
       note = null; dirty = false;
       $('#aTitle', root).textContent = isNew ? 'Новый турнир' : t.name;
       if (!isNew) document.title = `${t.name} — админка`;
-      $('#descCount', root).textContent = $('#f-description', root).value.length;
-      sum();
+      if (canManage) { $('#descCount', root).textContent = $('#f-description', root).value.length; sum(); }
       if (motion) gsap.from($$('.acc-card', body), { y: 18, opacity: 0, duration: .5, stagger: .06, ease: 'power3.out', clearProps: 'transform,opacity' });
     }
     const sum = () => {
@@ -243,7 +262,7 @@ export default {
         const r = await admin.get(t.id);
         if (!alive) return;
         t = r.tournament;
-        const slot = $('#statusSlot', root); if (slot) slot.innerHTML = statusPanel(t);
+        const slot = $('#statusSlot', root); if (slot) slot.innerHTML = statusPanel(t, canManage);
         if (bk) bk.setTournament(t);
       } catch { /* панель обновится при следующем действии */ }
     }
@@ -260,6 +279,25 @@ export default {
       if (rb && !rb.disabled) {
         const id = rb.dataset.id, act = rb.dataset.ract;
         if (act === 'reload') return loadRegs();
+        if (act === 'export') {
+          busy(rb, true);
+          try {
+            const { blob, name } = await admin.exportCsv(t.id, rb.dataset.kind);
+            const url = URL.createObjectURL(blob), a = document.createElement('a');
+            a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            if (alive) say('Файл скачан. Откройте его в Excel: кириллица и столбцы отобразятся правильно.', true);
+          } catch (err) { if (alive) say(tournamentError(err, 'Не удалось скачать файл.')); }
+          if (alive) busy(rb, false);
+          return;
+        }
+        if (act === 'refunded-all') {
+          if (!confirm(`Отметить, что взносы возвращены: ${rb.dataset.n} шт. на сумму ${rub(Number(rb.dataset.sum))}? Деньги сайт не двигает, это только пометка. Убедитесь, что переводы сделаны.`)) return;
+          busy(rb, true);
+          try { const r = await admin.refundedAll(t.id); if (!alive) return; await loadRegs(); say(`Отмечено возвратов: ${r.count}.`, true); }
+          catch (err) { if (alive) { busy(rb, false); say(tournamentError(err)); } }
+          return;
+        }
         let note;
         if (act === 'cancel') {
           note = prompt(rb.dataset.paid === 'true' ? 'Заявка оплачена: взнос придётся вернуть вручную. Причина (необязательно):' : 'Снять заявку. Причина (необязательно):');
@@ -299,6 +337,18 @@ export default {
           if (confirm(CONFIRM[to])) changeStatus(b, to);
           break;
         }
+        case 'cancel-open': {
+          const paid = regs.filter((r) => r.status === 'paid'), live = regs.filter((r) => ['pending_payment', 'paid', 'waitlist'].includes(r.status));
+          $('#cancelInfo', root).innerHTML = `Будет снято заявок: <b>${live.length}</b>${paid.length ? `, из них оплачено <b>${paid.length}</b> на сумму <b>${rub(paid.reduce((a, r) => a + r.fee, 0))}</b>: они получат пометку «нужен возврат»` : ''}. Участники увидят, что турнир отменён.`;
+          $('#cancelForm', root).hidden = false; $('#dupForm', root).hidden = true; $('#cReason', root).focus(); break;
+        }
+        case 'cancel-close': $('#cancelForm', root).hidden = true; break;
+        case 'dup-open': {
+          const d = new Date(t.startsAt); d.setDate(d.getDate() + 7);
+          $('#dDate', root).value = toLocal(d.getTime() > Date.now() ? d : defaultStart());
+          $('#dupForm', root).hidden = false; $('#cancelForm', root).hidden = true; $('#dDate', root).focus(); break;
+        }
+        case 'dup-close': $('#dupForm', root).hidden = true; break;
         case 'finish-cancel': $('#finishForm', root).hidden = true; $$('[data-act="status"][data-to="finished"]', root).forEach((x) => { x.hidden = false; }); break;
         case 'delete':
           if (confirm(`Удалить турнир «${t.name}» навсегда? Это нельзя отменить.`)) {
@@ -320,6 +370,28 @@ export default {
     root.addEventListener('submit', (e) => {
       e.preventDefault();
       if (e.target.id === 'tForm') return save($('#saveBtn', root));
+      if (e.target.id === 'cancelForm') {
+        const reason = $('#cReason', root).value.trim(), er = $('#cReason-err', root), btn = $('button[type=submit]', e.target);
+        if (reason.length < 5) { er.textContent = 'Напишите причину: от 5 символов'; $('#cReason', root).focus(); return; }
+        er.textContent = '';
+        if (!confirm('Отменить турнир? Это сразу снимет все заявки.')) return;
+        busy(btn, true);
+        admin.cancelTournament(t.id, { reason }).then((r) => { if (!alive) return; t = r.tournament; paint(); say('Турнир отменён. Оплаченные заявки помечены для возврата.', true); })
+          .catch((err) => { if (alive) { busy(btn, false); say(tournamentError(err)); } });
+        return;
+      }
+      if (e.target.id === 'dupForm') {
+        const when = new Date($('#dDate', root).value), name = $('#dName', root).value.trim().replace(/\s+/g, ' '), btn = $('button[type=submit]', e.target);
+        const dErr = $('#dDate-err', root), nErr = $('#dName-err', root);
+        dErr.textContent = !$('#dDate', root).value || isNaN(when) ? 'Укажите дату и время' : when <= new Date() ? 'Дата должна быть в будущем' : '';
+        nErr.textContent = name && (name.length < 3 || name.length > 60) ? 'Название — от 3 до 60 символов' : '';
+        if (dErr.textContent || nErr.textContent) return;
+        busy(btn, true);
+        admin.duplicate(t.id, { startsAt: when.toISOString(), ...(name ? { name } : {}) })
+          .then((r) => { flash.set('Копия создана как черновик. Проверьте данные и опубликуйте её.'); if (alive) navigate(`/admin/tournaments/${r.tournament.id}`); })
+          .catch((err) => { if (alive) { busy(btn, false); say(tournamentError(err)); } });
+        return;
+      }
       if (e.target.id === 'finishForm') {
         const roster = $('#wRoster', root).value.split(',').map((s) => s.trim()).filter(Boolean);
         if (roster.length > 7 || roster.some((n) => n.length > 20)) { $('#wRoster-err', root).textContent = 'До 7 ников, каждый — до 20 символов'; return; }
@@ -339,6 +411,7 @@ export default {
     document.addEventListener('click', guardLinks, true);
 
     (async () => {
+      if (isNew && !canManage) { body.innerHTML = '<section class="stub tm-state"><h1>Нет доступа</h1><p>Создавать турниры может только администратор.</p><div class="stub-actions"><a href="/admin" class="btn btn-primary">В админку</a></div></section>'; return; }
       if (isNew) { t = { ...DEFAULTS }; paint(); $('#f-name', root).focus({ preventScroll: true }); return; }
       try { t = (await admin.get(params.id)).tournament; if (alive) paint(); }
       catch (e) {

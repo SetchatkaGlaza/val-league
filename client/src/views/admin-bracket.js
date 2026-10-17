@@ -2,6 +2,8 @@ import { $ } from '../js/ui.js';
 import { admin } from '../js/api.js';
 import { esc } from './parts.js';
 import { tournamentError, mapName, MATCH } from './tournament-parts.js';
+import { ROLE_LABEL, isAdmin, myRole } from './admin-nav.js';
+import { actionLabel } from './audit-labels.js';
 import { matchBadge, whenShort, sideName, forfeitLabel } from './bracket-parts.js';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -43,12 +45,18 @@ function mapsError(maps) {
  */
 export function mountAdminBracket(host, t, ctx) {
   let alive = true, data = null, error = '', editing = null, schedOpen = false, seeding = 'random', order = null, loadingOrder = false, working = false;
+  let notes = [], notesError = '', panel = null, hist = null;   // panel: { id, kind: 'notes'|'history'|'rollback' } — раскрытая панель матча; id null — заметки турнира
 
   const say = (m, ok) => ctx.say(m, ok);
 
   async function load() {
     try { data = await admin.bracket(t.id); error = ''; }
     catch (e) { error = tournamentError(e, 'Не удалось загрузить сетку.'); }
+    loadNotes();
+    if (alive) draw();
+  }
+  async function loadNotes() {
+    try { notes = (await admin.notes(t.id)).notes; notesError = ''; } catch (e) { notesError = tournamentError(e, 'Не удалось загрузить заметки.'); }
     if (alive) draw();
   }
 
@@ -68,11 +76,16 @@ export function mountAdminBracket(host, t, ctx) {
     const live = t.status === 'live', fin = t.status === 'finished';
     const hasBoth = !!(m.a && m.b);
     const score = m.status === 'finished' && !m.bye ? `<b class="bm-score">${m.scoreA}:${m.scoreB}</b>${m.forfeit ? `<span class="st st-draft">${forfeitLabel(m)}</span>` : ''}` : '';
+    const nn = notes.filter((n) => n.matchId === m.id).length, nextM = m.nextId ? findMatch(m.nextId) : null;
+    const canRollback = (live || fin) && m.status === 'finished' && !m.bye && (!nextM || ['pending', 'ready'].includes(nextM.status));
     const acts = m.bye ? '' : [
       (live || fin) && hasBoth ? `<button type="button" class="btn btn-${m.status === 'finished' ? 'ghost' : 'primary'} btn-xs" data-bact="result" data-id="${m.id}">${m.status === 'finished' ? 'Исправить счёт' : 'Ввести результат'}</button>` : '',
       live && m.status === 'ready' ? `<button type="button" class="btn btn-ghost btn-xs" data-bact="start" data-id="${m.id}">Матч начался</button>` : '',
       live && m.status === 'live' ? `<button type="button" class="btn btn-ghost btn-xs" data-bact="unstart" data-id="${m.id}">Вернуть в «готов»</button>` : '',
       hasBoth && m.status !== 'finished' ? `<button type="button" class="btn btn-ghost btn-xs" data-bact="edit" data-id="${m.id}">Время и лобби</button>` : '',
+      canRollback ? `<button type="button" class="btn btn-danger btn-xs" data-bact="rollback" data-id="${m.id}">Откатить результат</button>` : '',
+      m.status === 'finished' || m.forfeit ? `<button type="button" class="btn btn-ghost btn-xs" data-bact="history" data-id="${m.id}">История</button>` : '',
+      `<button type="button" class="btn btn-ghost btn-xs" data-bact="notes" data-id="${m.id}">Заметки${nn ? ` (${nn})` : ''}</button>`,
       `<a class="btn btn-ghost btn-xs" href="/matches/${m.id}">Страница</a>`,
     ].join('');
     const mapsText = m.maps ? m.maps.map((x) => `${x.map ? `${mapName(x.map)} ` : ''}${x.a}:${x.b}`).join(' · ') : '';
@@ -85,8 +98,43 @@ export function mountAdminBracket(host, t, ctx) {
       </div>
       ${acts ? `<div class="bm-act">${acts}</div>` : ''}
       ${editing && editing.id === m.id ? editor(m) : ''}
+      ${panel && panel.id === m.id ? sidePanel(m) : ''}
     </li>`;
   };
+
+  const when = (iso) => new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+  const noteList = (list) => list.length
+    ? `<ul class="bn-list">${list.map((n) => `<li><p>${esc(n.body)}</p><small>${esc(n.author.nick)} · ${esc(ROLE_LABEL[n.author.role] ?? n.author.role)} · ${when(n.at)}${isAdmin(myRole()) ? ` · <button type="button" class="btn btn-ghost btn-xs" data-bact="note-del" data-nid="${esc(n.id)}" aria-label="Удалить заметку">Удалить</button>` : ''}</small></li>`).join('')}</ul>`
+    : '<p class="acc-sub">Заметок пока нет.</p>';
+  const noteForm = () => `<form class="bm-form" data-bform="note" novalidate>
+      <div class="field"><label>Новая заметка<div class="control area"><textarea name="body" rows="3" maxlength="1000" placeholder="Что произошло, кто что сказал, на чём договорились"></textarea></div></label><p class="hint-mut">Видят только модераторы и админы. Изменить заметку нельзя, только добавить новую.</p></div>
+      <p class="err" data-ferr role="alert"></p>
+      <div class="tg-actions"><button type="submit" class="btn btn-primary btn-sm"><span class="label">Добавить заметку</span><span class="spinner" aria-hidden="true"></span></button><button type="button" class="btn btn-ghost btn-sm" data-bact="panel-close">Закрыть</button></div>
+    </form>`;
+  const histRow = (h) => {
+    const sc = (v) => (v && v.scoreA != null ? `${v.scoreA}:${v.scoreB}${v.forfeit ? ' (тех.)' : ''}` : '—');
+    const detail = h.action === 'match.update' ? '' : ` Было ${sc(h.before)} → стало ${sc(h.after)}.`;
+    return `<li><b>${esc(actionLabel(h.action))}</b>.${esc(detail)}${h.reason ? ` Причина: ${esc(h.reason)}.` : ''}<small>${esc(h.actor.nick)} · ${when(h.at)}</small></li>`;
+  };
+  /** Раскрытая под матчем панель: заметки, история результата или откат. */
+  function sidePanel(m) {
+    if (panel.kind === 'notes') return `<div class="bm-panel" aria-label="Заметки к матчу">${noteList(notes.filter((n) => n.matchId === m.id))}${noteForm()}</div>`;
+    if (panel.kind === 'history') {
+      return `<div class="bm-panel" aria-label="История матча">${hist === null ? '<div class="sk sk-card"></div>' : typeof hist === 'string' ? `<p class="acc-sub">${esc(hist)}</p><button type="button" class="btn btn-ghost btn-sm" data-bact="history" data-id="${m.id}">Повторить</button>`
+        : hist.length ? `<ul class="bn-list">${hist.map(histRow).join('')}</ul>` : '<p class="acc-sub">Изменений по этому матчу пока нет.</p>'}<div class="tg-actions"><button type="button" class="btn btn-ghost btn-sm" data-bact="panel-close">Закрыть</button></div></div>`;
+    }
+    return `<form class="bm-form bm-panel" data-bform="rollback" novalidate>
+      <p class="acc-sub">Результат матча будет снят, команда-победитель уберётся из следующего матча${m.nextId ? '' : ', а турнир снова станет «идёт»'}. Это можно, пока следующий матч не начался.</p>
+      <div class="field"><label>Причина (от 5 символов)<div class="control"><input type="text" name="reason" maxlength="300" autocomplete="off" /></div></label></div>
+      <p class="err" data-ferr role="alert"></p>
+      <div class="tg-actions"><button type="submit" class="btn btn-danger btn-sm"><span class="label">Откатить результат</span><span class="spinner" aria-hidden="true"></span></button><button type="button" class="btn btn-ghost btn-sm" data-bact="panel-close">Отмена</button></div>
+    </form>`;
+  }
+  const tournamentNotes = () => `
+    <div class="bk-notes" id="tNotes"><h3 class="bm-round">Заметки турнира</h3>
+      ${notesError ? `<p class="acc-sub">${esc(notesError)}</p><button type="button" class="btn btn-ghost btn-sm" data-bact="notes-reload">Повторить</button>` : noteList(notes.filter((n) => !n.matchId))}
+      ${panel && panel.id === null ? noteForm() : '<div class="tg-actions"><button type="button" class="btn btn-ghost btn-sm" data-bact="notes-open">Добавить заметку</button></div>'}
+    </div>`;
 
   const editor = (m) => {
     if (editing.kind === 'result') {
@@ -149,7 +197,7 @@ export function mountAdminBracket(host, t, ctx) {
   };
 
   function genPanel() {
-    if (t.status !== 'upcoming') return '';
+    if (t.status !== 'upcoming' || ctx.canManage === false) return '';
     const has = data.rounds.length > 0;
     const can = data.canGenerate;
     const list = seeding === 'manual' ? (order
@@ -204,6 +252,7 @@ export function mountAdminBracket(host, t, ctx) {
       ${schedPanel()}
       ${has ? data.rounds.map((r) => `<h3 class="bm-round">${esc(r.name)}</h3><ul class="bm-list">${r.matches.map(matchRow).join('')}</ul>`).join('')
         : (t.status === 'upcoming' ? '' : '<div class="acc-empty"><p>Сетки нет.</p></div>')}
+      ${tournamentNotes()}
     </section>`;
   }
 
@@ -242,7 +291,20 @@ export function mountAdminBracket(host, t, ctx) {
       case 'reload': error = ''; data = null; draw(); load(); break;
       case 'close': editing = null; draw(); break;
       case 'sched': schedOpen = !schedOpen; draw(); $('[data-bform="schedule"] input', host)?.focus(); break;
-      case 'result': case 'edit': editing = { id, kind: act }; draw(); $(`[data-mid="${id}"] input`, host)?.focus(); break;
+      case 'notes': case 'rollback': editing = null; panel = { id, kind: act }; draw(); $(`[data-mid="${id}"] textarea, [data-mid="${id}"] input`, host)?.focus(); break;
+      case 'history': {
+        editing = null; panel = { id, kind: 'history' }; hist = null; draw();
+        try { hist = (await admin.matchHistory(id)).history; } catch (err) { hist = tournamentError(err, 'Не удалось загрузить историю.'); }
+        if (alive && panel && panel.kind === 'history' && panel.id === id) draw();
+        break;
+      }
+      case 'panel-close': panel = null; draw(); break;
+      case 'notes-open': panel = { id: null, kind: 'notes' }; draw(); $('#tNotes textarea', host)?.focus(); break;
+      case 'notes-reload': loadNotes(); break;
+      case 'note-del':
+        if (confirm('Удалить заметку? Её текст останется в журнале действий.')) await run(b, () => admin.removeNote(b.dataset.nid).then(() => loadNotes()), 'Заметка удалена.');
+        break;
+      case 'result': case 'edit': panel = null; editing = { id, kind: act }; draw(); $(`[data-mid="${id}"] input`, host)?.focus(); break;
       case 'generate': {
         if (data.rounds.length && !confirm('Пересоздать сетку? Текущие пары и введённое расписание будут удалены.')) return;
         if (seeding === 'manual' && !order) return;
@@ -271,6 +333,22 @@ export function mountAdminBracket(host, t, ctx) {
       if (!Number.isInteger(parallel) || parallel < 1 || parallel > 32) { err.textContent = 'Одновременных матчей: от 1 до 32.'; return; }
       const r = await run(btn, () => admin.scheduleBracket(t.id, { start: start.toISOString(), intervalMin: interval, parallel, rounds: f.allRounds.checked ? 'all' : 'first', overwrite: f.overwrite.checked }));
       if (r) { schedOpen = false; draw(); say(r.scheduled ? `Время назначено: матчей — ${r.scheduled}.` : 'Менять нечего: у всех матчей уже есть время. Отметьте «Заменить уже назначенное время».', !!r.scheduled); }
+      return;
+    }
+    if (f.dataset.bform === 'note') {
+      const body = f.body.value.trim(), mid = f.closest('[data-mid]')?.dataset.mid;
+      if (!body) { err.textContent = 'Напишите текст заметки.'; f.body.focus(); return; }
+      if (body.length > 1000) { err.textContent = 'Заметка — не длиннее 1000 символов.'; return; }
+      const r = await run(btn, () => admin.addNote(t.id, { body, ...(mid ? { matchId: mid } : {}) }), 'Заметка добавлена.');
+      if (r) { panel = null; draw(); }
+      return;
+    }
+    if (f.dataset.bform === 'rollback') {
+      const reason = f.reason.value.trim(), mid = f.closest('[data-mid]').dataset.mid;
+      if (reason.length < 5) { err.textContent = 'Напишите причину: от 5 символов.'; f.reason.focus(); return; }
+      if (!confirm('Откатить результат матча? Победитель уберётся из следующего матча.')) return;
+      const r = await run(btn, () => admin.rollbackMatch(mid, { reason }), 'Результат откатан.');
+      if (r) { panel = null; draw(); if (ctx.onTournament) ctx.onTournament(); }
       return;
     }
     const row = f.closest('[data-mid]'), id = row.dataset.mid, m = findMatch(id);

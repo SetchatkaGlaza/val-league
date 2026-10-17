@@ -38,3 +38,13 @@
 .doc-end { margin: 48px 0 0; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: .92rem; }
 .doc-foot { padding: 28px 16px max(28px, env(safe-area-inset-bottom)); text-align: center; color: #6e6e77; font-size: .85rem; border-top: 1px solid var(--line); }
 .doc-foot a { color: var(--muted); }
+
+/* Баннер объявления над шапкой и контакты в подвале (этап 8.4) */
+.site-banner { display: flex; align-items: center; justify-content: center; gap: 10px; padding: max(8px, env(safe-area-inset-top)) 12px 8px; background: rgba(244,17,44,.16); border-bottom: 1px solid rgba(244,17,44,.4); text-align: center; }
+.site-banner[hidden] { display: none; }
+.site-banner p { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: .92rem; }
+.site-banner-x { flex: none; width: 36px; height: 36px; border: 0; border-radius: 10px; background: transparent; color: var(--text); font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.site-banner-x:hover { background: rgba(255,255,255,.08); }
+.site-banner-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.foot-contacts { margin: 10px 0 0; overflow-wrap: anywhere; }
+.foot-contacts[hidden] { display: none; }

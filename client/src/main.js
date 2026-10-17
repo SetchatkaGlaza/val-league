@@ -6,6 +6,7 @@ import './styles/teams.css';
 import './styles/tournaments.css';
 import './styles/bracket.css';
 import './styles/results.css';
+import './styles/admin.css';
 import { initBackground } from './js/background.js';
 import { motion, $ } from './js/ui.js';
 import { assets } from './js/layouts.js';

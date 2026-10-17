@@ -3,7 +3,7 @@ import { buildTeamHistory } from './team-history.js';
 // Чистая логика рейтинга игроков (без БД, проверяется server/test/rating.test.js).
 // Данных по отдельным игрокам (убийства, раунды) в базе нет, поэтому очки даются за результаты команды в турнирах.
 
-/** Очки рейтинга. Меняются здесь: страница и профиль берут значения отсюда. */
+/** Очки рейтинга по умолчанию. Рабочие значения задаются в админке (настройки сайта, этап 8.4); здесь запасные. */
 export const POINTS = {
   place: { 1: 100, 2: 60, 3: 40 },   // за место в турнире
   participation: 10,                  // за участие в завершённом турнире
@@ -11,23 +11,24 @@ export const POINTS = {
 };
 
 /** Очки за одно участие (запись истории из buildTeamHistory). */
-export const entryPoints = (h) => POINTS.participation + (h.place ? POINTS.place[h.place] ?? 0 : 0) + (h.record?.wins ?? 0) * POINTS.matchWin;
+export const entryPoints = (h, points = POINTS) => points.participation + (h.place ? points.place[h.place] ?? 0 : 0) + (h.record?.wins ?? 0) * points.matchWin;
 
 /**
  * Рейтинг игроков по завершённым турнирам.
  *   regs        — оплаченные заявки в завершённых турнирах: { id, tournament_id, team_name, roster: [{ nick }] }
  *   tournaments / matchesByT — как в buildTeamHistory
+ *   points      — формула очков (по умолчанию POINTS)
  * Игрок определяется по нику в составе (без учёта регистра). Возвращает массив от лучшего к худшему;
  * места делятся при равенстве очков (1, 1, 3…).
  */
-export function buildRating({ regs, tournaments, matchesByT }) {
+export function buildRating({ regs, tournaments, matchesByT, points = POINTS }) {
   const byNick = new Map();
   for (const reg of regs) {
     const t = tournaments.get(reg.tournament_id);
     if (!t || t.status !== 'finished') continue;
     const [h] = buildTeamHistory({ regs: [reg], tournaments, matchesByT }).history;
     if (!h) continue;
-    const pts = entryPoints(h);
+    const pts = entryPoints(h, points);
     const seen = new Set();
     for (const p of reg.roster || []) {
       const nick = typeof p === 'string' ? p : p?.nick;

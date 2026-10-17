@@ -1,3 +1,4 @@
+import { isStaff } from '../services/permissions.js';
 import { z } from 'zod';
 import { query, withTx } from '../db/index.js';
 import { config } from '../config.js';
@@ -148,7 +149,7 @@ export async function get(req, res) {
   const id = uuid.safeParse(req.params.id);
   if (!id.success) throw new HttpError(404, 'not_found');
   const { rows: [r] } = await query(`${REG_SELECT} WHERE r.id = $1`, [id.data]);
-  if (!r || !(req.user.role === 'admin' || r.team_captain === req.user.id || r.roster_ids.includes(req.user.id))) throw new HttpError(404, 'not_found');
+  if (!r || !(isStaff(req.user.role) || r.team_captain === req.user.id || r.roster_ids.includes(req.user.id))) throw new HttpError(404, 'not_found');
   res.json({ registration: { ...serializeReg(r), isCaptain: r.team_captain === req.user.id } });
 }
 

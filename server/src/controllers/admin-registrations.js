@@ -3,6 +3,8 @@ import { query, withTx } from '../db/index.js';
 import { HttpError, parse, uuid } from '../utils/http.js';
 import { ACTIVE, OCCUPY, occupiedCount, promoteWaitlist, validateRoster, invalidateBracket } from '../services/registrations.js';
 import { REG_SELECT, serializeReg } from './registrations.js';
+import { record } from '../services/audit.js';
+import { registrationsCsv, participantsCsv, csvFileName, refundTotals } from '../services/tournament-tools.js';
 
 const noteSchema = z.object({ note: z.string().trim().max(300).optional() });
 
@@ -34,6 +36,8 @@ async function lockReg(db, rawId) {
   const { rows: [r] } = await db.query(`${REG_SELECT} WHERE r.id = $1 FOR UPDATE OF r`, [id.data]);
   return { t, r };
 }
+const regView = (r) => ({ status: r.status, cancelReason: r.cancel_reason, refundDue: r.refund_due, note: r.note, fee: r.fee });
+const regLabel = (t, r) => `${r.team_name} → ${t.name}`;
 const reload = async (db, id) => serializeReg((await db.query(`${REG_SELECT} WHERE r.id = $1`, [id])).rows[0]);
 
 /**
@@ -63,7 +67,9 @@ export async function confirm(req, res) {
           SET status = 'paid', cancel_reason = NULL, pay_until = NULL, paid_at = now(), confirmed_by = $2, note = COALESCE($3, note), updated_at = now()
         WHERE id = $1`, [r.id, req.user.id, d.note ?? null]);
     await invalidateBracket(db, t);   // новая оплаченная команда: сетку нужно сформировать заново
-    return reload(db, r.id);
+    const out = await reload(db, r.id);
+    await record(db, req, { action: 'registration.confirm', objectType: 'registration', objectId: r.id, label: regLabel(t, r), before: regView(r), after: { status: 'paid', cancelReason: null, refundDue: r.refund_due, note: d.note ?? r.note, fee: r.fee }, meta: { revived: revive, code: r.payment_code } });
+    return out;
   });
   res.json({ registration: reg });
 }
@@ -82,7 +88,9 @@ export async function cancel(req, res) {
         WHERE id = $1`, [r.id, d.note ?? null]);
     if (r.status === 'paid') await invalidateBracket(db, t);
     if (OCCUPY.includes(r.status)) await promoteWaitlist(db, t);
-    return reload(db, r.id);
+    const out = await reload(db, r.id);
+    await record(db, req, { action: 'registration.cancel', objectType: 'registration', objectId: r.id, label: regLabel(t, r), before: regView(r), after: { status: 'cancelled', cancelReason: 'admin', refundDue: r.status === 'paid', note: d.note ?? r.note, fee: r.fee }, meta: { code: r.payment_code } });
+    return out;
   });
   res.json({ registration: reg });
 }
@@ -90,10 +98,47 @@ export async function cancel(req, res) {
 /** Отметить, что взнос возвращён игрокам. */
 export async function refunded(req, res) {
   const reg = await withTx(async (db) => {
-    const { r } = await lockReg(db, req.params.id);
+    const { t, r } = await lockReg(db, req.params.id);
     if (!r.refund_due) throw new HttpError(409, 'bad_transition');
     await db.query('UPDATE tournament_registrations SET refund_due = false, updated_at = now() WHERE id = $1', [r.id]);
+    await record(db, req, { action: 'registration.refunded', objectType: 'registration', objectId: r.id, label: regLabel(t, r), before: { refundDue: true }, after: { refundDue: false }, meta: { fee: r.fee, code: r.payment_code } });
     return reload(db, r.id);
   });
   res.json({ registration: reg });
+}
+
+const exportSchema = z.object({ kind: z.enum(['registrations', 'participants']) });
+
+/** Выгрузка в CSV (UTF-8 с BOM, разделитель «;»). Только ники и названия команд, без почт и Steam. Выгрузка пишется в журнал. */
+export async function exportCsv(req, res) {
+  const id = uuid.safeParse(req.params.id);
+  if (!id.success) throw new HttpError(404, 'not_found');
+  const { kind } = parse(exportSchema, req.query);
+  const { rows: [t] } = await query('SELECT id, slug, name FROM tournaments WHERE id = $1', [id.data]);
+  if (!t) throw new HttpError(404, 'not_found');
+  const { rows: regs } = await query(
+    `SELECT team_name, status, roster, fee, payment_code, paid_at, created_at, cancel_reason, refund_due, note
+       FROM tournament_registrations WHERE tournament_id = $1
+      ORDER BY CASE status WHEN 'paid' THEN 0 WHEN 'pending_payment' THEN 1 WHEN 'waitlist' THEN 2 ELSE 3 END, created_at`, [t.id]);
+  const csv = kind === 'registrations' ? registrationsCsv(regs) : participantsCsv(regs);
+  await record({ query }, req, { action: 'tournament.export', objectType: 'tournament', objectId: t.id, label: t.name, meta: { kind, rows: regs.length } });
+  res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${csvFileName(t.slug, kind)}"`, 'Cache-Control': 'no-store' });
+  res.send(csv);
+}
+
+/** Массово отметить «взнос возвращён» у всех заявок турнира, где возврат ещё не отмечен. Деньги не двигаются: это только пометка. */
+export async function refundedAll(req, res) {
+  const id = uuid.safeParse(req.params.id);
+  if (!id.success) throw new HttpError(404, 'not_found');
+  const out = await withTx(async (db) => {
+    const { rows: [t] } = await db.query('SELECT * FROM tournaments WHERE id = $1 FOR UPDATE', [id.data]);
+    if (!t) throw new HttpError(404, 'not_found');
+    const { rows } = await db.query(`SELECT id, fee FROM tournament_registrations WHERE tournament_id = $1 AND refund_due FOR UPDATE`, [t.id]);
+    const sum = refundTotals(rows);
+    if (!sum.count) throw new HttpError(409, 'nothing_to_do');
+    await db.query(`UPDATE tournament_registrations SET refund_due = false, updated_at = now() WHERE id = ANY($1::uuid[])`, [sum.ids]);
+    await record(db, req, { action: 'registration.bulk_refunded', objectType: 'tournament', objectId: t.id, label: t.name, before: { refundDue: sum.count }, after: { refundDue: 0 }, meta: { count: sum.count, total: sum.total, ids: sum.ids } });
+    return { count: sum.count, total: sum.total };
+  });
+  res.json(out);
 }
