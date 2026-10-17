@@ -23,7 +23,8 @@ const row = (h) => {
 
 /** Содержимое страницы игрока. d — ответ GET /api/players/:nick. */
 export function playerHtml(d) {
-  const { player, stats, history } = d;
+  const { player, stats, history, rating } = d;
+  const ratingChip = rating ? `<li><a class="plain" href="/rating" title="Как считаются очки — на странице рейтинга">Рейтинг: <b>№${rating.rank}</b> из ${rating.total} · ${rating.points} ${plural(rating.points, 'очко', 'очка', 'очков')}</a></li>` : '';
   const chips = [
     `${stats.tournaments} ${plural(stats.tournaments, 'турнир', 'турнира', 'турниров')}`,
     stats.titles ? `${stats.titles} ${plural(stats.titles, 'победа', 'победы', 'побед')} в турнирах` : '',
@@ -34,7 +35,7 @@ export function playerHtml(d) {
   <section class="tm-hero pl-hero">
     <div class="pl-av" aria-hidden="true">${esc([...player.nick][0].toUpperCase())}</div>
     <div class="tm-hero-t"><h1>${esc(player.nick)}</h1>
-      ${chips.length ? `<ul class="chips">${chips.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+      ${chips.length || ratingChip ? `<ul class="chips">${ratingChip}${chips.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
     </div>
   </section>
   <section class="acc-card tm-wide"><h2>Участие в турнирах</h2>

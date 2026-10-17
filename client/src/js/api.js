@@ -139,6 +139,7 @@ export const teams = {
 
 export const players = {
   get: live((nick) => request(`/players/${enc(nick)}`)),
+  rating: live((limit = 20, offset = 0) => request(`/players?limit=${limit}&offset=${offset}`)),
 };
 
 /** Приглашение — либо по ссылке ({ token }), либо персональное ({ id }). */

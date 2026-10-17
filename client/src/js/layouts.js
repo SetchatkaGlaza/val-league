@@ -38,13 +38,14 @@ const DOC = `
       <a href="/tournaments" data-nav="/tournaments">Турниры</a>
       <a href="/teams" data-nav="/teams">Команды</a>
       <a href="/winners" data-nav="/winners">Победители</a>
+      <a href="/rating" data-nav="/rating">Рейтинг</a>
       <a href="/rules" data-nav="/rules">Регламент</a>
       <a href="/admin" data-nav="/admin" class="doc-admin" hidden>Админка</a>
       <a href="/login" class="doc-login">Войти</a>
     </nav>
   </header>
   <div id="slot" class="doc-slot"></div>
-  <footer class="doc-foot">© <span id="year"></span> VOLOGDA AMATEUR LEAGUE · <a href="/tournaments">Турниры</a> · <a href="/teams">Команды</a> · <a href="/winners">Победители</a> · <a href="/rules">Регламент</a> · <a href="/privacy">Конфиденциальность</a></footer>
+  <footer class="doc-foot">© <span id="year"></span> VOLOGDA AMATEUR LEAGUE · <a href="/tournaments">Турниры</a> · <a href="/teams">Команды</a> · <a href="/winners">Победители</a> · <a href="/rating">Рейтинг</a> · <a href="/rules">Регламент</a> · <a href="/privacy">Конфиденциальность</a></footer>
 </div>`;
 
 function make(html) {

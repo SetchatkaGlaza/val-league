@@ -224,7 +224,12 @@ try {
   const pp = wReg ? await anon('GET', `/players/${encodeURIComponent(wReg)}`) : null;
   const pEntry = pp?.data?.history?.find((x) => x.tournament.slug === bslug);
   check('профиль игрока: 1 место и титул в статистике', pEntry?.place === 1 && pp.data.stats.titles >= 1, pp?.data);
+  check('профиль игрока: место и очки в рейтинге', pp?.data?.rating?.rank >= 1 && pp.data.rating.points > 0, pp?.data?.rating);
   check('профиль игрока: ник без учёта регистра', wReg && (await anon('GET', `/players/${encodeURIComponent(wReg.toUpperCase())}`)).status === 200);
+  // Рейтинг игроков (этап 7.1): игрок из состава победителя есть в списке и имеет очки
+  const rt = await anon('GET', '/players?limit=50');
+  const rrow = rt.data.players?.find((x) => x.nick.toLowerCase() === String(wReg).toLowerCase());
+  check('рейтинг: игрок победителя есть в списке с очками и местом', rt.status === 200 && rrow?.points > 0 && rrow.rank >= 1 && rt.data.total >= 1, rt.data);
   check('профиль несуществующего игрока: 404', (await anon('GET', '/players/no_such_player_xyz')).status === 404);
   check('после финала лобби скрыто', (await pl.api('GET', `/matches/${mid2}`)).data.match.lobby === undefined);
 

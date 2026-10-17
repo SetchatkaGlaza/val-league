@@ -2,8 +2,10 @@ import shield from '../assets/logo-shield.png';
 import { $, $$, gsap, motion } from '../js/ui.js';
 import { getUser } from '../js/session.js';
 import { SITE } from '../config.js';
-import { tournaments } from '../js/api.js';
+import { tournaments, players } from '../js/api.js';
 import { esc } from './parts.js';
+import { playerLink } from './player-link.js';
+import { ratingRow } from './rating.js';
 import { rub, dateLong, dateShort, formatLine, feeLine, slotsLine, statusBadge, startCountdown, countdownHtml } from './tournament-parts.js';
 
 const I = {
@@ -42,7 +44,7 @@ const winnersHtml = (list) => list.map((w) => `
   <article class="win">
     <p class="win-t">${esc(w.tournament)} · ${dateShort(w.date)}</p>
     <h3>${esc(w.team)}</h3>
-    ${w.roster.length ? `<p class="win-roster">${w.roster.map(esc).join(' · ')}</p>` : ''}
+    ${w.roster.length ? `<p class="win-roster">${w.roster.map(playerLink).join(' · ')}</p>` : ''}
     ${w.prize ? `<p class="win-prize">Приз: ${rub(w.prize)}</p>` : ''}
     ${w.podium?.second ? `<p class="win-sub">2 место: ${esc(w.podium.second.name)}${w.podium.thirds?.length ? ` · 3 место: ${w.podium.thirds.map((x) => esc(x.name)).join(', ')}` : ''}</p>` : ''}
   </article>`).join('');
@@ -89,6 +91,12 @@ export default {
         <a class="link" href="/winners">Весь архив победителей →</a>
       </section>
 
+      <section class="winners rt-home" id="ratBox" aria-labelledby="ratTitle" data-reveal hidden>
+        <h2 id="ratTitle">Топ игроков</h2>
+        <ol class="rt-list" id="ratList"></ol>
+        <a class="link" href="/rating">Весь рейтинг →</a>
+      </section>
+
       <section class="partners" aria-labelledby="partTitle" data-reveal>
         <h2 id="partTitle">Партнёры</h2>
         <div class="partner-grid">
@@ -109,7 +117,7 @@ export default {
   mount(root) {
     let alive = true, stopCd = () => {};
     const user = getUser();
-    const box = $('#nextBox', root), winBox = $('#winBox', root);
+    const box = $('#nextBox', root), winBox = $('#winBox', root), ratBox = $('#ratBox', root);
 
     const showNext = (t) => {
       stopCd();
@@ -132,6 +140,14 @@ export default {
         if (io) { gsap.set(winBox, { opacity: 0, y: 28 }); io.observe(winBox); }
       } catch { /* блок победителей просто не показываем */ }
     }
+    async function loadRating() {
+      try {
+        const r = await players.rating(5, 0);
+        if (!alive || !r.players.length) return;
+        $('#ratList', root).innerHTML = r.players.map(ratingRow).join(''); ratBox.hidden = false;
+        if (io) { gsap.set(ratBox, { opacity: 0, y: 28 }); io.observe(ratBox); }
+      } catch { /* блок рейтинга просто не показываем */ }
+    }
     root.addEventListener('click', (e) => { if (e.target.closest('[data-retry]')) { box.innerHTML = '<div class="next-main"><div class="sk sk-line"></div></div>'; loadNext(); } });
 
     // Появление блоков при прокрутке
@@ -145,7 +161,7 @@ export default {
       }), { rootMargin: '0px 0px -8% 0px' });
       blocks.forEach((b) => io.observe(b));
     }
-    loadNext(); loadWinners();
+    loadNext(); loadWinners(); loadRating();
     return () => { alive = false; stopCd(); io && io.disconnect(); };
   },
 };

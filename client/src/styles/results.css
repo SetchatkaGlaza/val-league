@@ -52,3 +52,16 @@
 .th-roster a, .mem-t b a { color: inherit; text-decoration: none; }
 .th-roster a:hover, .mem-t b a:hover { color: var(--accent-2); text-decoration: underline; }
 @media (max-width: 480px) { .pl-av { width: 56px; height: 56px; font-size: 1.5rem; } }
+
+/* Рейтинг игроков (7.1) */
+.rt-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+.rt-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.03); }
+.rt-rank { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); font: 700 .95rem/1 var(--font-head); color: #c4c4cc; }
+.rt-rank.r1 { background: var(--accent); border-color: var(--accent); color: #fff; }
+.rt-rank.r2, .rt-rank.r3 { border-color: rgba(255,255,255,.45); color: #fff; }
+.rt-nick { display: grid; gap: 2px; min-width: 0; }
+.rt-nick b { overflow-wrap: anywhere; }
+.rt-nick a { color: #fff; text-decoration: none; }
+.rt-nick a:hover { color: var(--accent-2); text-decoration: underline; }
+.rt-nick small { color: var(--muted); font-size: .8rem; }
+.rt-pts { font: 800 1.2rem/1 var(--font-head); }

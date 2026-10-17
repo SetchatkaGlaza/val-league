@@ -17,6 +17,7 @@ import bracketPage from './views/bracket.js';
 import matchPage from './views/match.js';
 import teamsList from './views/teams-list.js';
 import winnersPage from './views/winners.js';
+import ratingPage from './views/rating.js';
 import adminHome from './views/admin.js';
 import adminTournament from './views/admin-tournament.js';
 import { notFound } from './views/stubs.js';
@@ -38,6 +39,7 @@ export const routes = {
   '/teams/new': teamNew,
   '/tournaments': tournamentsList,
   '/winners': winnersPage,
+  '/rating': ratingPage,
   '/admin': adminHome,
   '/admin/tournaments/new': adminTournament,
   '/invite': invite,
