@@ -9,6 +9,7 @@ import { cookieOptions } from '../middleware/auth.js';
 import { HttpError, parse } from '../utils/http.js';
 import { nick, password, publicUser, startSession } from './auth.js';
 import { ACTIVE } from '../services/registrations.js';
+import { canUnlinkSteam } from '../services/steam.js';
 
 const COST = 12;
 const flag = z.object({ email: z.boolean(), tg: z.boolean() });
@@ -16,6 +17,7 @@ const schemas = {
   profile: z.object({ nick }),
   password: z.object({ current: z.string().min(1).max(128), password }),
   notifications: z.object({ registered: flag, tomorrow: flag, match30: flag }),
+  unlinkSteam: z.object({ password: z.string().min(1).max(128) }),
   delete: z.object({ nick: z.string().trim().min(1).max(40) }),
 };
 
@@ -86,6 +88,33 @@ export async function deleteAccount(req, res) {
   await Promise.all(logos.map((n) => fs.unlink(path.join(config.uploadsDir, 'logos', path.basename(n))).catch(() => {})));
   res.clearCookie(config.cookieName, cookieOptions);
   res.json({ ok: true });
+}
+
+/**
+ * Отвязка Steam самим игроком (этап 9.2). Условия:
+ * — есть другой способ входа: подтверждённая почта и пароль (иначе 409 last_login_method);
+ * — игрок вводит текущий пароль (украденная сессия сама Steam не снимет);
+ * — при включённом REQUIRE_STEAM нельзя отвязать Steam, пока игрок в составе активной заявки на предстоящий или идущий турнир (409 in_tournament).
+ */
+export async function unlinkSteam(req, res) {
+  const d = parse(schemas.unlinkSteam, req.body);
+  const user = await withTx(async (db) => {
+    const { rows: [u] } = await db.query('SELECT * FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
+    if (!u) throw new HttpError(401, 'unauthorized');
+    const err = canUnlinkSteam(u);
+    if (err === 'not_linked') throw new HttpError(409, 'steam_not_linked');
+    if (err) throw new HttpError(409, err);
+    if (!(await bcrypt.compare(d.password, u.password_hash))) throw new HttpError(401, 'invalid_credentials', 'password');
+    if (config.registration.requireSteam) {
+      const { rows: busy } = await db.query(
+        `SELECT DISTINCT t.name FROM tournament_registrations r JOIN tournaments t ON t.id = r.tournament_id
+          WHERE $1 = ANY(r.roster_ids) AND r.status = ANY($2::text[]) AND t.status IN ('upcoming', 'live')`, [u.id, ACTIVE]);
+      if (busy.length) throw new HttpError(409, 'in_tournament', undefined, busy.map((b) => b.name));
+    }
+    const { rows: [after] } = await db.query('UPDATE users SET steam_id = NULL, steam_name = NULL WHERE id = $1 RETURNING *', [u.id]);
+    return after;
+  });
+  res.json({ user: publicUser(user) });
 }
 
 /** Telegram и Steam: появятся на этапе 9 (бот и вход через Steam). Клиент показывает понятное сообщение. */

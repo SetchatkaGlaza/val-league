@@ -86,7 +86,7 @@ export async function eligibility(req, res) {
   const out = [];
   for (const team of teams) {
     const { rows: members } = await query(
-      `SELECT u.id, u.nick, m.role, (u.email_verified_at IS NOT NULL AND NOT u.blocked) AS verified, (u.steam_id IS NOT NULL) AS steam
+      `SELECT u.id, u.nick, m.role, ((u.email_verified_at IS NOT NULL OR u.steam_id IS NOT NULL) AND NOT u.blocked) AS verified, (u.steam_id IS NOT NULL) AS steam
          FROM team_members m JOIN users u ON u.id = m.user_id WHERE m.team_id = $1
         ORDER BY (m.role = 'main') DESC, m.joined_at`, [team.id]);
     const reg = regs.find((r) => r.team_id === team.id);

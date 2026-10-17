@@ -93,7 +93,7 @@ export async function validateRoster(db, { team, tournament, rosterIds, exceptRe
       WHERE m.team_id = $1 AND u.id = ANY($2::uuid[])`, [team.id, ids]);
   if (users.length !== ids.length) throw new HttpError(409, 'not_member', 'roster');
 
-  const unverified = users.filter((u) => u.blocked || !u.email_verified_at).map((u) => u.nick);
+  const unverified = users.filter((u) => u.blocked || !(u.email_verified_at || u.steam_id)).map((u) => u.nick);
   if (unverified.length) throw new HttpError(409, 'roster_unverified', 'roster', unverified);
   if (R.requireSteam) {
     const noSteam = users.filter((u) => !u.steam_id).map((u) => u.nick);

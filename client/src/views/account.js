@@ -14,10 +14,27 @@ const row = (icon, name, status, action) =>
   `<div class="link-row"><div class="link-ic">${icon}</div><div class="link-t"><b>${name}</b>${status}</div>${action}</div>`;
 const btn = (act, label) => `<button type="button" class="btn btn-ghost btn-sm" data-act="${act}">${label}</button>`;
 
-function linkedHtml(u, tg) {
-  const steam = u.steam
-    ? row(ICON.steam, 'Steam', `<span class="ok">${esc(u.steam.name)}</span>`, '<span class="tag">Привязан</span>')
-    : row(ICON.steam, 'Steam', '<span>Не привязан</span>', btn('steam', 'Привязать'));
+// Steam можно отвязать, только если остаётся вход по подтверждённой почте и паролю (сервер проверяет то же самое)
+const canUnlink = (u) => !!(u.steam && u.email && u.emailVerified && u.hasPassword);
+const UNLINK_ERR = {
+  invalid_credentials: 'Неверный пароль.',
+  last_login_method: 'Steam — единственный способ входа в этот аккаунт, отвязать его нельзя.',
+  steam_not_linked: 'Steam уже отвязан.',
+  validation: 'Введите пароль.',
+};
+
+function linkedHtml(u, tg, unlink = false) {
+  const steamAction = !u.steam ? btn('steam', 'Привязать') : canUnlink(u) ? (unlink ? '' : btn('steam-off', 'Отвязать')) : '<span class="tag">Привязан</span>';
+  const steamPanel = unlink ? `
+    <div class="tg-panel" id="unlinkPanel">
+      <p>Введите пароль, чтобы отвязать Steam. Входить можно будет по почте.</p>
+      <div class="field"><div class="control"><input id="unlinkPass" type="password" autocomplete="current-password" maxlength="128" aria-label="Пароль" placeholder="Пароль" /></div></div>
+      <div class="tg-actions"><button type="button" class="btn btn-primary btn-sm" data-act="steam-off-go"><span class="label">Отвязать Steam</span><span class="spinner" aria-hidden="true"></span></button>
+      ${btn('steam-off-cancel', 'Отмена')}</div>
+    </div>` : '';
+  const steam = (u.steam
+    ? row(ICON.steam, 'Steam', `<span class="ok">${esc(u.steam.name)}</span>${canUnlink(u) ? '' : '<span class="hint-mut">Единственный способ входа</span>'}`, steamAction)
+    : row(ICON.steam, 'Steam', '<span>Не привязан</span>', btn('steam', 'Привязать'))) + steamPanel;
   const tgRow = u.telegram
     ? row(TG, 'Telegram', `<span class="ok">@${esc(u.telegram.username)}</span>`, btn('tg-off', 'Отвязать'))
     : row(TG, 'Telegram', '<span>Не привязан</span>', tg ? '' : btn('tg-on', 'Привязать'));
@@ -98,10 +115,20 @@ export default {
   mount(root, { navigate, query }) {
     let alive = true, tg = null;
     const card = $('#linked', root), note = $('#accNote', root);
-    const draw = () => { card.innerHTML = linkedHtml(getUser(), tg); note.hidden = !!getUser().steam && !query.get('error'); };
+    let unlink = false;
+    const draw = () => { card.innerHTML = linkedHtml(getUser(), tg, unlink); note.hidden = !!getUser().steam && !query.get('error') && !linkedNow; };
     const busy = (btn, v) => { btn.disabled = v; btn.classList.toggle('loading', v); };
-    // Сервер возвращает сюда, пока вход через Steam не готов (этап 9)
-    if (query.get('error') === 'steam_soon') note.textContent = 'Привязка Steam появится на этапе входа через Steam. Пока она недоступна — это не ошибка аккаунта.';
+    // Сервер возвращает сюда после привязки Steam: ?steam=linked или ?error=…
+    const STEAM_MSG = {
+      steam_failed: 'Не получилось привязать Steam. Попробуйте ещё раз.',
+      steam_cancelled: 'Привязка Steam отменена.',
+      steam_unavailable: 'Steam сейчас не отвечает. Попробуйте позже.',
+      steam_taken: 'Этот Steam уже привязан к другому аккаунту. Если это ваш второй аккаунт, напишите организаторам.',
+      steam_already: 'К вашему аккаунту Steam уже привязан.',
+    };
+    const linkedNow = query.get('steam') === 'linked';
+    if (STEAM_MSG[query.get('error')]) { note.textContent = STEAM_MSG[query.get('error')]; note.hidden = false; }
+    else if (linkedNow) { note.textContent = 'Steam привязан. Теперь можно регистрироваться на турниры.'; note.hidden = false; }
     const fail = (e, el) => { const m = serverFallback(e instanceof ApiError ? e : new ApiError(0, 'network', ''), 'Не удалось выполнить. Попробуйте ещё раз.'); if (el) el.textContent = m; };
 
     /* Заявки на турниры: тоже отдельным запросом */
@@ -161,6 +188,21 @@ export default {
       try {
         if (act === 'logout') { busy(btn, true); await account.logout().catch(() => {}); clearUser(); navigate('/'); return; }
         if (act === 'steam') { busy(btn, true); const r = await account.steamLink(); if (alive && r) { patchUser({ steam: r.steam }); draw(); } }
+        if (act === 'steam-off') { unlink = true; draw(); $('#unlinkPass', root)?.focus(); return; }
+        if (act === 'steam-off-cancel') { unlink = false; draw(); return; }
+        if (act === 'steam-off-go') {
+          const pass = $('#unlinkPass', root).value;
+          const err = $('#linkErr', root); err.textContent = '';
+          if (!pass) { err.textContent = UNLINK_ERR.validation; $('#unlinkPass', root).focus(); return; }
+          busy(btn, true);
+          try { const r = await account.steamUnlink({ password: pass }); if (alive) { patchUser({ steam: null, email: r.user.email, emailVerified: r.user.emailVerified, hasPassword: r.user.hasPassword }); unlink = false; draw(); note.textContent = 'Steam отвязан. Привязать его снова можно в любой момент.'; note.hidden = false; } }
+          catch (e2) {
+            if (!alive) return; busy(btn, false);
+            if (e2 instanceof ApiError && e2.code === 'in_tournament') err.textContent = `Нельзя отвязать Steam, пока вы в заявке на турнир: ${(e2.details || []).join(', ')}.`;
+            else err.textContent = (e2 instanceof ApiError && UNLINK_ERR[e2.code]) || serverFallback(e2 instanceof ApiError ? e2 : new ApiError(0, 'network', ''), 'Не удалось отвязать Steam. Попробуйте ещё раз.');
+          }
+          return;
+        }
         if (act === 'tg-on') { busy(btn, true); tg = await account.telegramCode(); if (alive) draw(); }
         if (act === 'tg-cancel') { tg = null; draw(); }
         if (act === 'tg-check') { busy(btn, true); const r = await account.telegramCheck(); if (alive) { patchUser({ telegram: r.telegram }); tg = null; draw(); } }

@@ -28,7 +28,18 @@
 | POST | `/resend-verification` | `email` | `{ok}` |
 | POST | `/forgot-password` | `email` | `{ok}` |
 | POST | `/reset-password` | `token, password` | `{ok}`; `400 token_invalid` |
-| GET | `/steam` | — | пока перенаправляет на сайт с сообщением «скоро» |
+| GET | `/steam` | `?link=1` (привязка к вошедшему аккаунту), `?next=/путь` | редирект на Steam (OpenID). Ставит cookie `val_steam` (httpOnly, 10 минут, только для маршрутов Steam) |
+| GET | `/steam/callback` | параметры `openid.*` от Steam | редирект на сайт: успех → `/steam-done?next=…` (при привязке ещё `linked=1`); ошибка → `/login?error=…` или `/account?error=…` |
+| GET | `/steam/pending` | — (cookie `val_steam_new`) | `{steam:{name}, next}`; `401 steam_session_expired` |
+| POST | `/steam/register` | `nick, terms` (cookie `val_steam_new`) | `201 {user, next}` и сессия; `400 validation`; `401 steam_session_expired`; `409 nick_taken / steam_exists` |
+
+**Вход и привязка через Steam (этап 9.1).** Код ответа Steam: `steam_failed`, `steam_cancelled`, `steam_unavailable` (Steam не ответил за 8 секунд), `steam_new` (устарело: с 9.2 вместо ошибки открывается `/steam-signup`), `blocked`, при привязке ещё `steam_taken` (Steam уже у другого аккаунта) и `steam_already` (у вас уже есть Steam). Проверки: подпись подтверждает сам Steam (`check_authentication`), адрес возврата, сервер Steam и 17-значный Steam ID сверяются до обращения к сети, куда вернуть игрока (`next`) только внутри сайта. Заблокированный войти через Steam не может, истёкшая блокировка снимается сама. Steam ID уникален в базе, поэтому один Steam не привязать к двум аккаунтам. Логика: `services/steam.js`, контроллер: `controllers/steam.js`, клиент: страница `/steam-done`.
+
+**Регистрация через Steam (этап 9.2).** Если Steam подтвердил игрока, а аккаунта с таким Steam нет, сервер ставит подписанную cookie `val_steam_new` (15 минут, только для маршрутов `/api/auth/steam`) и ведёт на `/steam-signup`. Аккаунт создаётся запросом `POST /api/auth/steam/register` (`nick`, `terms: true`) **только** по этой cookie; Steam ID из тела запроса не принимается. Создаётся новая запись без почты и пароля (`email`, `password_hash` = NULL); ник проверяется так же, как при обычной регистрации. Коды: `nick_taken`, `steam_exists` (этот Steam уже зарегистрирован, нужно войти), `steam_session_expired` (cookie нет или истекла: пройти Steam заново). Игрок, у которого привязан Steam, считается подтверждённым при подаче заявки на турнир (почта не обязательна).
+
+**Отвязка Steam игроком.** `POST /api/account/steam/unlink` с текущим паролем. Разрешена, если у аккаунта есть подтверждённая почта и пароль; иначе `last_login_method`. При `REQUIRE_STEAM=true` запрещена, пока игрок в активной заявке на предстоящий или идущий турнир.
+
+**Включение `REQUIRE_STEAM` (не включено по умолчанию).** После включения игроки основы без привязанного Steam не смогут подать заявку (`roster_no_steam`), а сайт показывает им, кого не хватает. Порядок: 1) убедиться, что вход и привязка Steam работают на боевом адресе (`CLIENT_URL`/`STEAM_RETURN_BASE` с HTTPS, при желании `STEAM_API_KEY`); 2) заранее предупредить игроков, что Steam нужно привязать в кабинете; 3) посмотреть, сколько игроков без Steam: `SELECT count(*) FROM users WHERE steam_id IS NULL;`; 4) добавить в `server/.env` строку `REQUIRE_STEAM=true` и перезапустить сервер; вернуть можно, убрав строку. Уже поданные заявки не отменяются.
 
 ## Маршруты аккаунта (`/api/account`, нужен вход)
 | Метод | Путь | Тело | Ответ |
@@ -37,6 +48,7 @@
 | POST | `/password` | `current, password` | `{ok}`; `401 invalid_credentials` (лимит 10 попыток / 15 мин); остальные сессии завершаются |
 | POST | `/notifications` | `registered, tomorrow, match30` = `{ email, tg }` | сохранённые настройки |
 | POST | `/delete` | `nick` | `{ok}`; `409 captain_must_transfer` (+`details` — названия команд) / `last_admin` |
+| POST | `/steam/unlink` | `password` | `{user}`; `401 invalid_credentials`; `409 last_login_method / steam_not_linked / in_tournament` (+`details`) |
 | POST | `/telegram/code, /check, /unlink` | — | `501 soon` до этапа 9 |
 
 Смена или сброс пароля записывает `users.password_changed_at`: сессии (JWT), выданные раньше, перестают действовать.

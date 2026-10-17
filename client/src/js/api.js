@@ -71,6 +71,17 @@ const mocks = {
   async telegramCode() { await wait(500); return { code: String(Math.floor(100000 + Math.random() * 900000)), bot: '@val_league_bot' }; },
   async telegramCheck() { await wait(900); return { telegram: { username: 'player_tg' } }; },
   async telegramUnlink() { await wait(500); return { ok: true }; },
+  async steamPending() { await wait(400); return { steam: { name: 'ProPlayer' }, next: '/account' }; },
+  async steamRegister({ nick }) {
+    await wait(900);
+    if (nick.toLowerCase() === 'shadow') throw new ApiError(409, 'nick_taken', '', 'nick');
+    return { user: { nick, email: null, emailVerified: false, hasPassword: false, steam: { name: 'ProPlayer' }, telegram: null }, next: '/account' };
+  },
+  async steamUnlink({ password }) {
+    await wait(700);
+    if (password !== 'Password1') throw new ApiError(401, 'invalid_credentials', '', 'password');
+    return { user: { nick: 'Player', email: 'player@val.gg', emailVerified: true, hasPassword: true, steam: null, telegram: null } };
+  },
   async steamLink() { await wait(900); return { steam: { name: 'Player', id: '76561198000000000' } }; },
   async updateProfile({ nick }) {
     await wait(700);
@@ -112,6 +123,9 @@ export const auth = {
   resetPassword: (d) => post('/auth/reset-password', d, mocks.resetPassword),
   me: () => request('/auth/me'),
   steamUrl: () => `${BASE}/auth/steam`,
+  /** Новый игрок после Steam: имя профиля (cookie подтверждения живёт 15 минут) и создание аккаунта с выбранным ником. */
+  steamPending: () => (MOCK ? mocks.steamPending() : request('/auth/steam/pending')),
+  steamRegister: (d) => post('/auth/steam/register', d, mocks.steamRegister),
 };
 
 export const account = {
@@ -120,6 +134,7 @@ export const account = {
   telegramCheck: () => post('/account/telegram/check', {}, mocks.telegramCheck),
   telegramUnlink: () => post('/account/telegram/unlink', {}, mocks.telegramUnlink),
   /** Демо привязывает Steam сразу; на сервере это переход на OpenID: /auth/steam?link=1 */
+  steamUnlink: (d) => post('/account/steam/unlink', d, mocks.steamUnlink),
   steamLink: () => (MOCK ? mocks.steamLink() : location.assign(`${BASE}/auth/steam?link=1`)),
 };
 

@@ -3,6 +3,8 @@ import register from './views/register.js';
 import forgot from './views/forgot.js';
 import verifyEmail from './views/verify-email.js';
 import resetPassword from './views/reset-password.js';
+import steamDone from './views/steam-done.js';
+import steamSignup from './views/steam-signup.js';
 import account from './views/account.js';
 import settingsPage from './views/settings.js';
 import { rules, privacy } from './views/docs.js';
@@ -36,6 +38,8 @@ export const routes = {
   '/register': register,
   '/forgot': forgot,
   '/verify-email': verifyEmail,
+  '/steam-done': steamDone,
+  '/steam-signup': steamSignup,
   '/reset-password': resetPassword,
   '/account': account,
   '/settings': settingsPage,

@@ -10,10 +10,17 @@ if (!jwtSecret || jwtSecret.length < 32) {
   console.warn('⚠ JWT_SECRET не задан: используется ключ для разработки. Для продакшена обязательно задайте свой.');
 }
 
+// Вход через Steam. Steam вернёт игрока на {returnBase}/api/auth/steam/callback: это адрес сайта, а не сервера (в разработке запросы /api проходят через proxy Vite).
+const clientUrl = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+
 export const config = {
   isProd,
   jwtSecret,
-  clientUrl: (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, ''),
+  clientUrl,
+  steam: {
+    returnBase: (process.env.STEAM_RETURN_BASE || clientUrl).replace(/\/$/, ''),
+    apiKey: process.env.STEAM_API_KEY || '',   // необязателен: с ключом берём из Steam имя профиля, без него подписываем «Steam …1234»
+  },
   cookieName: 'val_session',
   mailFrom: process.env.MAIL_FROM || 'VAL <no-reply@val-league.ru>',
   // Загруженные файлы (логотипы команд). В продакшене укажите путь вне папки с кодом и включите его в бэкапы.

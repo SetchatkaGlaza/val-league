@@ -9,6 +9,15 @@ const MESSAGES = {
   invalid_credentials: 'Неверная почта или пароль.',
   blocked: 'Аккаунт заблокирован. Если это ошибка, напишите нам в Telegram.',
 };
+// Сервер возвращает сюда с ?error=…, если вход через Steam не получился
+const STEAM_ERRORS = {
+  steam_failed: 'Не получилось войти через Steam. Попробуйте ещё раз.',
+  steam_cancelled: 'Вход через Steam отменён.',
+  steam_unavailable: 'Steam сейчас не отвечает. Попробуйте позже или войдите по почте.',
+  steam_expired: 'Время подтверждения Steam истекло. Нажмите «Войти через Steam» ещё раз.',
+  steam_exists: 'Аккаунт с этим Steam уже создан. Нажмите «Войти через Steam».',
+  blocked: MESSAGES.blocked,
+};
 
 export default {
   layout: 'auth',
@@ -36,7 +45,7 @@ export default {
     const kit = formKit(form, { email: emailError, password: loginPasswordError });
     passwordHelpers();
     const next = () => query.get('next');
-    if (query.get('error') === 'steam_soon') kit.show('Вход через Steam появится позже. Пока войдите по почте или создайте аккаунт.');
+    if (STEAM_ERRORS[query.get('error')]) kit.show(STEAM_ERRORS[query.get('error')]);
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();

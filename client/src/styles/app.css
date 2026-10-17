@@ -56,6 +56,8 @@ body[data-layout='doc'] #bg { opacity: .35; }
 .acc-id { flex: 1; min-width: 0; }
 .acc-id h1 { margin: 0; font: 700 clamp(1.6rem, 5vw, 2.2rem)/1.1 var(--font-head); text-transform: uppercase; overflow-wrap: anywhere; }
 .acc-id p { margin: 2px 0 0; color: var(--muted); font-size: .92rem; overflow-wrap: anywhere; }
+/* Узкий экран: кнопки «Админка / Настройки / Выйти» переносятся под ник, а не вылезают за край (было 399 px при экране 360) */
+@media (max-width: 560px) { .acc-hero { flex-wrap: wrap; } .acc-id { flex: 1 1 calc(100% - 80px); } }
 .acc .banner { margin: 0; }
 .acc-grid { display: grid; gap: 18px; grid-template-columns: 1fr; }
 @media (min-width: 820px) { .acc-grid { grid-template-columns: 1fr 1fr; } .acc-wide { grid-column: 1 / -1; } }

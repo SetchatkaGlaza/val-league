@@ -39,6 +39,8 @@ export const publicUser = (u) => ({
   id: u.id,
   nick: u.nick,
   email: u.email,
+  emailVerified: !!u.email_verified_at,
+  hasPassword: !!u.password_hash,
   role: u.role,
   steam: u.steam_id ? { name: u.steam_name } : null,
   telegram: u.telegram_username ? { username: u.telegram_username } : null,

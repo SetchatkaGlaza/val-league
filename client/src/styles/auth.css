@@ -111,3 +111,8 @@
 .back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px; color: var(--muted); font-size: .9rem; text-decoration: none; transition: color .2s, transform .25s var(--ease); }
 .back:hover { color: var(--text); transform: translateX(-3px); }
 .motion .reveal-field { will-change: transform, opacity; }
+
+/* Выбор ника после Steam (этап 9.2) */
+.steam-chip { display: flex; align-items: center; justify-content: center; gap: 10px; margin: -8px auto 22px; padding: 10px 14px; max-width: 100%; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text); font-weight: 600; }
+.steam-chip svg { flex: none; width: 20px; height: 20px; }
+.steam-chip span { min-width: 0; overflow-wrap: anywhere; }
